@@ -1,0 +1,24 @@
+{
+  "name": "marketing-system",
+  "version": "1.0.0",
+  "description": "行銷管理系統 - 產品資料庫與廣告文案管理",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve .",
+    "build": "echo 'Static site - no build needed'"
+  },
+  "keywords": [
+    "marketing",
+    "product-management",
+    "react",
+    "tailwindcss"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/你的帳號/marketing-system.git"
+  }
+}
+
