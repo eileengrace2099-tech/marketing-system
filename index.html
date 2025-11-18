@@ -248,22 +248,23 @@
                   請先登入以進入管理介面
                 </p>
               </div>
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <label className="text-sm text-slate-300">帳號</label>
+              <form className="space-y-4" onSubmit={handleSubmit} autoComplete="off">
+                <div>
                   <input
+                    type="text"
                     className="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                    autoComplete="off"
                     value={form.username}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, username: e.target.value }))
                     }
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-slate-300">密碼</label>
+                <div>
                   <input
                     type="password"
                     className="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                    autoComplete="new-password"
                     value={form.password}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, password: e.target.value }))
