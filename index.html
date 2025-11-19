@@ -2375,6 +2375,55 @@
           }
         }, [db.users]);
 
+        // 自動登出：1小時無動作自動登出
+        useEffect(() => {
+          if (!user) return;
+
+          let inactivityTimer = null;
+          const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1小時（毫秒）
+
+          const resetTimer = () => {
+            // 清除舊的計時器
+            if (inactivityTimer) {
+              clearTimeout(inactivityTimer);
+            }
+            // 設定新的計時器
+            inactivityTimer = setTimeout(() => {
+              console.log('⏰ 1小時無動作，自動登出');
+              setUser(null);
+              alert('您已超過1小時未操作，系統已自動登出以保護您的帳號安全。');
+            }, INACTIVITY_TIMEOUT);
+          };
+
+          // 監聽使用者活動事件
+          const activityEvents = [
+            'mousedown',
+            'mousemove',
+            'keypress',
+            'scroll',
+            'touchstart',
+            'click'
+          ];
+
+          // 初始化計時器
+          resetTimer();
+
+          // 為所有活動事件添加監聽器
+          activityEvents.forEach(event => {
+            document.addEventListener(event, resetTimer, true);
+          });
+
+          // 清理函數
+          return () => {
+            if (inactivityTimer) {
+              clearTimeout(inactivityTimer);
+            }
+            activityEvents.forEach(event => {
+              document.removeEventListener(event, resetTimer, true);
+            });
+          };
+        }, [user]);
+
         const handleLogin = ({ username, password }) => {
           const found = db.users.find(
             (u) => u.username === username && u.password === password
@@ -2386,7 +2435,10 @@
           return false;
         };
 
-        const handleLogout = () => setUser(null);
+        const handleLogout = () => {
+          console.log('👋 使用者手動登出');
+          setUser(null);
+        };
 
         const handleResetStorage = () => {
           if (
