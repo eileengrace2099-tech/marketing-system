@@ -126,6 +126,11 @@
             .filter(([, url]) => url)
         );
         const features = normalizeFeatures(product.features);
+        const purchaseDecision = Array.isArray(product.purchaseDecision)
+          ? product.purchaseDecision.filter(pd => pd && pd.trim())
+          : product.purchaseDecision
+          ? [product.purchaseDecision].filter(pd => pd && pd.trim())
+          : [];
         return {
           ...product,
           productNumber: strip(product.productNumber),
@@ -136,6 +141,7 @@
           category: strip(product.category),
           usageFlow: strip(product.usageFlow),
           shortDescription: strip(product.shortDescription),
+          purchaseDecision,
           faqs: normalizeFaqs(product.faqs),
           recommendedCombos: normalizeRecommendedCombos(product.recommendedCombos),
           features,
@@ -198,7 +204,11 @@
             nameEn: product.name_en,
             nickname: product.nickname,
             shortDescription: product.short_description,
-            purchaseDecision: product.purchase_decision,
+            purchaseDecision: Array.isArray(product.purchase_decision) 
+              ? product.purchase_decision 
+              : product.purchase_decision 
+              ? [product.purchase_decision] 
+              : [],
             channelLinks: product.channel_links || {},
             features: product.features || [],
             audiences: product.audiences || [],
@@ -1084,7 +1094,7 @@
                 nameEn: "",
                 nickname: "",
                 shortDescription: "",
-                purchaseDecision: "",
+                purchaseDecision: [],
                 channelLinks: {},
                 features: normalizeFeatures(),
                 audiences: [],
@@ -1272,20 +1282,22 @@
                   items={form.faqs || []}
                   onChange={(values) => updateField("faqs", values)}
                 />
-                <MultiInput
-                  label="購買決策"
-                  values={
-                    Array.isArray(form.purchaseDecision)
-                      ? form.purchaseDecision
-                      : form.purchaseDecision
-                      ? [form.purchaseDecision]
-                      : []
-                  }
-                  placeholder="輸入購買決策要點"
-                  onChange={(values) =>
-                    updateField("purchaseDecision", values.join("、"))
-                  }
-                />
+                <div>
+                  <label className="block text-sm text-slate-300 mb-2">購買決策</label>
+                  <MultiInput
+                    values={
+                      Array.isArray(form.purchaseDecision)
+                        ? form.purchaseDecision
+                        : form.purchaseDecision
+                        ? [form.purchaseDecision]
+                        : []
+                    }
+                    placeholder="輸入購買決策要點"
+                    onChange={(values) =>
+                      updateField("purchaseDecision", values)
+                    }
+                  />
+                </div>
               </div>
             </SectionCard>
 
@@ -1644,8 +1656,12 @@
                       <p>{editingProduct.productNumber || "-"}</p>
                     </div>
                     <div>
-                      <p className="text-slate-400">分類</p>
+                      <p className="text-slate-400">大分類</p>
                       <p>{editingProduct.category || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">使用程序</p>
+                      <p>{editingProduct.usageFlow || "-"}</p>
                     </div>
                     <div>
                       <p className="text-slate-400">中文品名</p>
@@ -1655,17 +1671,192 @@
                       <p className="text-slate-400">英文品名</p>
                       <p>{editingProduct.nameEn || "-"}</p>
                     </div>
+                    <div>
+                      <p className="text-slate-400">產品綽號</p>
+                      <p>{editingProduct.nickname || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">產品使用方式</p>
+                      <p>{editingProduct.usageMethod || "-"}</p>
+                    </div>
                     <div className="md:col-span-2">
-                      <p className="text-slate-400">產品特色</p>
+                      <p className="text-slate-400">五大特色</p>
                       <div className="flex flex-wrap gap-2 mt-1">
-                        {editingProduct.features?.map((f) => (
-                          <Badge key={f} label={f} />
+                        {editingProduct.features?.filter(f => f).map((f, idx) => (
+                          <Badge key={idx} label={f} />
                         ))}
+                        {(!editingProduct.features || editingProduct.features.filter(f => f).length === 0) && (
+                          <span className="text-slate-500">-</span>
+                        )}
                       </div>
                     </div>
                     <div className="md:col-span-2">
-                      <p className="text-slate-400">產品介紹</p>
-                      <p>{editingProduct.shortDescription || "-"}</p>
+                      <p className="text-slate-400">產品受眾</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {editingProduct.audiences?.map((a, idx) => (
+                          <Badge key={idx} label={a} />
+                        ))}
+                        {(!editingProduct.audiences || editingProduct.audiences.length === 0) && (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">產品痛點</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {editingProduct.painPoints?.map((p, idx) => (
+                          <Badge key={idx} label={p} />
+                        ))}
+                        {(!editingProduct.painPoints || editingProduct.painPoints.length === 0) && (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">得獎榮譽</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {editingProduct.awards?.map((a, idx) => (
+                          <Badge key={idx} label={a} />
+                        ))}
+                        {(!editingProduct.awards || editingProduct.awards.length === 0) && (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">通路貨號</p>
+                      <div className="space-y-2 mt-1">
+                        {editingProduct.channelSkus?.length > 0 ? (
+                          editingProduct.channelSkus.map((item, idx) => (
+                            <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
+                              <span className="text-slate-300">{item.channel}</span>：
+                              <span className="text-slate-200 ml-1">{item.sku}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">通路短連結</p>
+                      <div className="space-y-2 mt-1">
+                        {editingProduct.channelLinks && Object.keys(editingProduct.channelLinks).length > 0 ? (
+                          Object.entries(editingProduct.channelLinks).map(([channel, url]) => (
+                            <div key={channel} className="text-xs bg-slate-800/50 p-2 rounded">
+                              <span className="text-slate-300">{channel}</span>：
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline ml-1">
+                                {url}
+                              </a>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">購買決策</p>
+                      <div className="space-y-2 mt-1">
+                        {Array.isArray(editingProduct.purchaseDecision) && editingProduct.purchaseDecision.length > 0 ? (
+                          editingProduct.purchaseDecision.map((item, idx) => (
+                            <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
+                              {item}
+                            </div>
+                          ))
+                        ) : editingProduct.purchaseDecision ? (
+                          <div className="text-xs bg-slate-800/50 p-2 rounded">
+                            {editingProduct.purchaseDecision}
+                          </div>
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">常見問答</p>
+                      <div className="space-y-2 mt-1">
+                        {editingProduct.faqs?.length > 0 ? (
+                          editingProduct.faqs.map((faq, idx) => (
+                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
+                              <p className="text-emerald-400 font-semibold mb-1">Q{idx + 1}: {faq.question || "-"}</p>
+                              <p className="text-slate-300 text-xs">A: {faq.answer || "-"}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">產品介紹短文</p>
+                      <p className="mt-1 whitespace-pre-wrap">{editingProduct.shortDescription || "-"}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">推薦搭配產品</p>
+                      <div className="space-y-2 mt-1">
+                        {editingProduct.recommendedCombos?.length > 0 ? (
+                          editingProduct.recommendedCombos.map((item, idx) => (
+                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
+                              <p className="text-slate-200 font-semibold">{item.name || "-"}</p>
+                              {item.link && (
+                                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
+                                  {item.link}
+                                </a>
+                              )}
+                              {item.reason && (
+                                <p className="text-slate-400 text-xs mt-1">原因：{item.reason}</p>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">推薦其他產品</p>
+                      <div className="space-y-2 mt-1">
+                        {editingProduct.recommendedOthers?.length > 0 ? (
+                          editingProduct.recommendedOthers.map((item, idx) => (
+                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
+                              <p className="text-slate-200 font-semibold">{item.name || "-"}</p>
+                              {item.link && (
+                                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
+                                  {item.link}
+                                </a>
+                              )}
+                              {item.reason && (
+                                <p className="text-slate-400 text-xs mt-1">原因：{item.reason}</p>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-slate-400">高轉換素材</p>
+                      <div className="space-y-2 mt-1">
+                        {editingProduct.highConversionAssets?.length > 0 ? (
+                          editingProduct.highConversionAssets.map((item, idx) => (
+                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
+                              <p className="text-slate-200 font-semibold">{item.title || "-"}</p>
+                              {item.content && (
+                                <p className="text-slate-300 text-xs mt-1">{item.content}</p>
+                              )}
+                              {item.link && (
+                                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
+                                  {item.link}
+                                </a>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {editingProduct.images?.length > 0 && (
