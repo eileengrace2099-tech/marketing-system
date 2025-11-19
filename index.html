@@ -2330,7 +2330,29 @@
         );
       };
 
-      const Dashboard = ({ user, onLogout, db, setDb, storageInfo = {} }) => {
+      const Dashboard = ({ user, users = [], activeUserId, onLogout, onSwitchUser, onLogin, db, setDb, storageInfo = {} }) => {
+        const [showLoginModal, setShowLoginModal] = useState(false);
+        const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+        const [loginError, setLoginError] = useState("");
+
+        const handleAddLogin = () => {
+          setShowLoginModal(true);
+          setLoginForm({ username: "", password: "" });
+          setLoginError("");
+        };
+
+        const handleModalLogin = (e) => {
+          e.preventDefault();
+          const success = onLogin(loginForm);
+          if (success) {
+            setShowLoginModal(false);
+            setLoginForm({ username: "", password: "" });
+            setLoginError("");
+          } else {
+            setLoginError("帳號或密碼錯誤");
+          }
+        };
+
         const availableTabs = React.useMemo(
           () =>
             [
@@ -2382,12 +2404,54 @@
                       )}
                     </div>
                   )}
+                  {/* 多使用者切換器 */}
+                  {users.length > 1 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-slate-400">已登入帳號：</span>
+                      {users.map(u => (
+                        <div
+                          key={u.id}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full border transition ${
+                            activeUserId === u.id
+                              ? 'border-emerald-400 bg-emerald-400/20 text-emerald-300'
+                              : 'border-slate-700 hover:border-slate-600'
+                          }`}
+                        >
+                          <button
+                            onClick={() => onSwitchUser(u.id)}
+                            className="text-xs"
+                          >
+                            {u.displayName || u.username}
+                          </button>
+                          {users.length > 1 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onLogout(u.id);
+                              }}
+                              className="text-red-300 hover:text-red-200 text-xs ml-1"
+                              title={`登出 ${u.displayName || u.username}`}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="text-sm">
                     <p className="font-semibold">{user.displayName}</p>
                     <p className="text-slate-400 text-xs uppercase">{user.role}</p>
                   </div>
                   <button
-                    onClick={onLogout}
+                    onClick={handleAddLogin}
+                    className="px-3 py-1 rounded-xl border border-slate-700 text-xs hover:border-emerald-400/40 hover:text-emerald-300 transition"
+                    title="新增登入帳號"
+                  >
+                    + 新增登入
+                  </button>
+                  <button
+                    onClick={() => onLogout()}
                     className="px-4 py-2 rounded-xl border border-slate-700 text-sm"
                   >
                     登出
@@ -2433,57 +2497,148 @@
                 </SectionCard>
               )}
             </main>
+            
+            {/* 新增登入模態框 */}
+            {showLoginModal && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="w-full max-w-md space-y-6 bg-slate-900/95 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-emerald-400 uppercase tracking-[0.3em] text-xs mb-2">
+                        ADD LOGIN
+                      </p>
+                      <h2 className="text-2xl font-semibold">新增登入帳號</h2>
+                      <p className="text-slate-400 text-sm mt-1">
+                        登入另一個帳號以同時使用
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowLoginModal(false);
+                        setLoginForm({ username: "", password: "" });
+                        setLoginError("");
+                      }}
+                      className="text-slate-400 hover:text-slate-200 text-2xl"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <form className="space-y-4" onSubmit={handleModalLogin} autoComplete="off">
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="帳號"
+                        className="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                        autoComplete="off"
+                        value={loginForm.username}
+                        onChange={(e) =>
+                          setLoginForm((prev) => ({ ...prev, username: e.target.value }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="password"
+                        placeholder="密碼"
+                        className="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                        autoComplete="new-password"
+                        value={loginForm.password}
+                        onChange={(e) =>
+                          setLoginForm((prev) => ({ ...prev, password: e.target.value }))
+                        }
+                        required
+                      />
+                    </div>
+                    {loginError && (
+                      <p className="text-red-400 text-sm">{loginError}</p>
+                    )}
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLoginModal(false);
+                          setLoginForm({ username: "", password: "" });
+                          setLoginError("");
+                        }}
+                        className="flex-1 px-4 py-3 rounded-xl border border-slate-700 text-sm hover:border-slate-600 transition"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-3 rounded-xl bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition"
+                      >
+                        登入
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         );
       };
 
       const App = () => {
         const [db, setDb, storageInfo] = usePersistentDb();
-        const [user, setUser] = useState(null);
+        const [users, setUsers] = useState([]); // 多個登入的使用者
+        const [activeUserId, setActiveUserId] = useState(null); // 當前選中的使用者ID
+
+        const activeUser = users.find(u => u.id === activeUserId) || users[0] || null;
 
         const refreshUser = (target) => {
           if (!target) return;
-          setUser({
+          const refreshed = {
             ...target,
             permissions: normalizePermissions(target.permissions),
+          };
+          setUsers(prev => {
+            const exists = prev.find(u => u.id === target.id);
+            if (exists) {
+              return prev.map(u => u.id === target.id ? refreshed : u);
+            }
+            return [...prev, refreshed];
           });
+          if (!activeUserId || activeUserId === target.id) {
+            setActiveUserId(target.id);
+          }
         };
 
         useEffect(() => {
-          if (!user) return;
-          const fresh = db.users.find((u) => u.id === user.id);
-          if (fresh) {
-            const next = {
-              ...fresh,
-              permissions: normalizePermissions(fresh.permissions),
-            };
-            if (JSON.stringify(next) !== JSON.stringify(user)) {
-              setUser(next);
+          // 更新所有已登入使用者的資料
+          setUsers(prev => prev.map(user => {
+            const fresh = db.users.find((u) => u.id === user.id);
+            if (fresh) {
+              return {
+                ...fresh,
+                permissions: normalizePermissions(fresh.permissions),
+              };
             }
-          }
+            return user;
+          }));
         }, [db.users]);
 
-        // 自動登出：1小時無動作自動登出
+        // 自動登出：1小時無動作自動登出（針對當前使用者）
         useEffect(() => {
-          if (!user) return;
+          if (!activeUser) return;
 
           let inactivityTimer = null;
           const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1小時（毫秒）
 
           const resetTimer = () => {
-            // 清除舊的計時器
             if (inactivityTimer) {
               clearTimeout(inactivityTimer);
             }
-            // 設定新的計時器
             inactivityTimer = setTimeout(() => {
-              console.log('⏰ 1小時無動作，自動登出');
-              setUser(null);
-              alert('您已超過1小時未操作，系統已自動登出以保護您的帳號安全。');
+              console.log(`⏰ 使用者 ${activeUser.username} 1小時無動作，自動登出`);
+              handleLogout(activeUser.id);
+              if (users.length === 1) {
+                alert('您已超過1小時未操作，系統已自動登出以保護您的帳號安全。');
+              }
             }, INACTIVITY_TIMEOUT);
           };
 
-          // 監聽使用者活動事件
           const activityEvents = [
             'mousedown',
             'mousemove',
@@ -2493,15 +2648,12 @@
             'click'
           ];
 
-          // 初始化計時器
           resetTimer();
 
-          // 為所有活動事件添加監聽器
           activityEvents.forEach(event => {
             document.addEventListener(event, resetTimer, true);
           });
 
-          // 清理函數
           return () => {
             if (inactivityTimer) {
               clearTimeout(inactivityTimer);
@@ -2510,22 +2662,51 @@
               document.removeEventListener(event, resetTimer, true);
             });
           };
-        }, [user]);
+        }, [activeUser, users.length]);
 
         const handleLogin = ({ username, password }) => {
           const found = db.users.find(
             (u) => u.username === username && u.password === password
           );
           if (found) {
+            // 檢查是否已經登入
+            const alreadyLoggedIn = users.find(u => u.id === found.id);
+            if (alreadyLoggedIn) {
+              // 如果已登入，切換到該使用者
+              setActiveUserId(found.id);
+              return true;
+            }
+            // 新增到登入列表
             refreshUser(found);
             return true;
           }
           return false;
         };
 
-        const handleLogout = () => {
-          console.log('👋 使用者手動登出');
-          setUser(null);
+        const handleLogout = (userId = null) => {
+          if (userId) {
+            // 登出特定使用者
+            console.log(`👋 使用者 ${users.find(u => u.id === userId)?.username} 登出`);
+            setUsers(prev => {
+              const remaining = prev.filter(u => u.id !== userId);
+              if (remaining.length > 0 && activeUserId === userId) {
+                setActiveUserId(remaining[0].id);
+              } else if (remaining.length === 0) {
+                setActiveUserId(null);
+              }
+              return remaining;
+            });
+          } else {
+            // 登出當前使用者
+            if (activeUser) {
+              console.log(`👋 使用者 ${activeUser.username} 登出`);
+              handleLogout(activeUser.id);
+            }
+          }
+        };
+
+        const handleSwitchUser = (userId) => {
+          setActiveUserId(userId);
         };
 
         const handleResetStorage = () => {
@@ -2539,10 +2720,14 @@
           }
         };
 
-        return user ? (
+        return users.length > 0 ? (
           <Dashboard
-            user={user}
+            user={activeUser}
+            users={users}
+            activeUserId={activeUserId}
             onLogout={handleLogout}
+            onSwitchUser={handleSwitchUser}
+            onLogin={handleLogin}
             db={db}
             setDb={setDb}
             storageInfo={storageInfo}
