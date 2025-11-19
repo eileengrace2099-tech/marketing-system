@@ -653,6 +653,68 @@
         );
       };
 
+      const PurchaseDecisionEditor = ({ items = [], onChange }) => {
+        const handleAdd = () =>
+          onChange([...(items || []), ""]);
+
+        const handleChange = (index, value) => {
+          onChange(
+            items.map((item, idx) =>
+              idx === index ? value : item
+            )
+          );
+        };
+
+        const handleRemove = (index) => {
+          onChange(items.filter((_, idx) => idx !== index));
+        };
+
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-slate-300">購買決策</label>
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="px-3 py-1 text-xs rounded-full border border-slate-700"
+              >
+                新增決策要點
+              </button>
+            </div>
+            <div className="space-y-3">
+              {items.length ? (
+                items.map((item, index) => (
+                  <div
+                    key={index}
+                    className="space-y-2 bg-slate-950/40 border border-slate-800 rounded-2xl p-4"
+                  >
+                    <textarea
+                      className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2 min-h-[80px]"
+                      placeholder={`購買決策要點 #${index + 1}`}
+                      value={item}
+                      onChange={(e) =>
+                        handleChange(index, e.target.value)
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(index)}
+                      className="text-xs text-red-300 border border-red-500/40 rounded-xl px-3 py-1"
+                    >
+                      刪除此要點
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-slate-500 text-center py-4">
+                  尚未新增購買決策要點，點擊「新增決策要點」開始
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      };
+
       const FAQEditor = ({ items = [], onChange }) => {
         const handleAdd = () =>
           onChange([...(items || []), { question: "", answer: "" }]);
@@ -1282,22 +1344,18 @@
                   items={form.faqs || []}
                   onChange={(values) => updateField("faqs", values)}
                 />
-                <div>
-                  <label className="block text-sm text-slate-300 mb-2">購買決策</label>
-                  <MultiInput
-                    values={
-                      Array.isArray(form.purchaseDecision)
-                        ? form.purchaseDecision
-                        : form.purchaseDecision
-                        ? [form.purchaseDecision]
-                        : []
-                    }
-                    placeholder="輸入購買決策要點"
-                    onChange={(values) =>
-                      updateField("purchaseDecision", values)
-                    }
-                  />
-                </div>
+                <PurchaseDecisionEditor
+                  items={
+                    Array.isArray(form.purchaseDecision)
+                      ? form.purchaseDecision
+                      : form.purchaseDecision
+                      ? [form.purchaseDecision]
+                      : []
+                  }
+                  onChange={(values) =>
+                    updateField("purchaseDecision", values)
+                  }
+                />
               </div>
             </SectionCard>
 
