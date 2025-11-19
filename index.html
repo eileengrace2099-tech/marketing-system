@@ -888,51 +888,121 @@
         );
       };
 
+      // 圖片壓縮函數：壓縮到30KB以下，高度100px
+      const compressImage = (file, maxSizeKB = 30, targetHeight = 100) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              // 計算寬度（保持1:1比例）
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              canvas.width = targetHeight;
+              canvas.height = targetHeight;
+              
+              // 繪製圖片（居中裁剪）
+              const scale = Math.max(img.width / targetHeight, img.height / targetHeight);
+              const x = (img.width - targetHeight * scale) / 2;
+              const y = (img.height - targetHeight * scale) / 2;
+              
+              ctx.drawImage(
+                img,
+                x, y,
+                targetHeight * scale, targetHeight * scale,
+                0, 0,
+                targetHeight, targetHeight
+              );
+              
+              // 壓縮到30KB以下
+              let quality = 0.9;
+              const maxSize = maxSizeKB * 1024;
+              
+              const compress = () => {
+                canvas.toBlob(
+                  (blob) => {
+                    if (blob.size <= maxSize || quality <= 0.1) {
+                      const reader = new FileReader();
+                      reader.onload = () => resolve(reader.result);
+                      reader.readAsDataURL(blob);
+                    } else {
+                      quality -= 0.1;
+                      compress();
+                    }
+                  },
+                  'image/jpeg',
+                  quality
+                );
+              };
+              
+              compress();
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      };
+
       const FileUploader = ({ images, onChange }) => {
-        const handleFiles = (files) => {
-          const readers = Array.from(files).map(
-            (file) =>
-              new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.readAsDataURL(file);
-              })
-          );
-          Promise.all(readers).then((results) => {
-            onChange([...images, ...results]);
-          });
+        const [uploading, setUploading] = useState(false);
+        
+        const handleFiles = async (files) => {
+          setUploading(true);
+          try {
+            const compressedImages = await Promise.all(
+              Array.from(files).map(file => compressImage(file, 30, 100))
+            );
+            onChange([...images, ...compressedImages]);
+          } catch (error) {
+            console.error('圖片壓縮失敗:', error);
+            alert('圖片處理失敗，請重試');
+          } finally {
+            setUploading(false);
+          }
         };
+        
         const handleRemove = (img) => {
           onChange(images.filter((item) => item !== img));
         };
+        
         return (
           <div className="space-y-3">
-            <label className="text-sm text-slate-300">產品圖片 (1:1)</label>
+            <label className="text-sm text-slate-300">產品圖片 (1:1, 高度100px, 壓縮至30KB以下)</label>
             <input
               type="file"
               accept="image/*"
               multiple
-              onChange={(e) => handleFiles(e.target.files)}
-              className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2"
+              disabled={uploading}
+              onChange={(e) => {
+                if (e.target.files.length > 0) {
+                  handleFiles(e.target.files);
+                }
+                e.target.value = ''; // 重置input，允許重複選擇同一檔案
+              }}
+              className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 disabled:opacity-50"
             />
-            <div className="grid grid-cols-3 gap-3">
+            {uploading && (
+              <p className="text-xs text-emerald-400">正在處理圖片...</p>
+            )}
+            <div className="grid grid-cols-6 gap-2">
               {images.map((img, idx) => (
                 <div key={idx} className="relative group">
                   <img
                     src={img}
                     alt="product"
-                    className="w-full aspect-square object-cover rounded-2xl border border-slate-800"
+                    className="w-full h-[100px] object-cover rounded-xl border border-slate-800"
                   />
                   <button
                     onClick={() => handleRemove(img)}
-                    className="absolute top-2 right-2 bg-black/60 text-xs px-2 py-1 rounded-full hidden group-hover:block"
+                    className="absolute top-1 right-1 bg-red-500/80 text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     刪除
                   </button>
                 </div>
               ))}
               {!images.length && (
-                <div className="col-span-3 text-sm text-slate-500">
+                <div className="col-span-6 text-sm text-slate-500 text-center py-4">
                   尚未上傳圖片
                 </div>
               )}
@@ -1271,6 +1341,14 @@
                 </div>
               }
             >
+              {/* 產品圖片 - 放在最上面 */}
+              <div className="mb-6">
+                <FileUploader
+                  images={form.images}
+                  onChange={(images) => updateField("images", images)}
+                />
+              </div>
+              
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm">產品編號</label>
@@ -1385,7 +1463,7 @@
               </div>
             </SectionCard>
 
-            <SectionCard title="通路與圖片">
+            <SectionCard title="通路管理">
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm text-slate-300">通路貨號</h3>
