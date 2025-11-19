@@ -36,14 +36,12 @@
       // 如果環境變數不存在，會使用下面的預設值
       // ============================================
       const SUPABASE_URL = 
-        import.meta.env?.VITE_SUPABASE_URL || 
         window.VITE_SUPABASE_URL || 
-        ''; // 本地測試時可填入：'https://rocxusxophynujcrrigu.supabase.co/'
+        'https://rocxusxophynujcrrigu.supabase.co'; // 你的 Supabase Project URL
       
       const SUPABASE_KEY = 
-        import.meta.env?.VITE_SUPABASE_KEY || 
         window.VITE_SUPABASE_KEY || 
-        ''; // 本地測試時可填入：'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvY3h1c3hvcGh5bnVqY3JyaWd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NTYxMDIsImV4cCI6MjA3OTAzMjEwMn0.fB5aSqcGBB7sFoEA596QUDpP8iVO3WtoFltt4oUkqK8'
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvY3h1c3hvcGh5bnVqY3JyaWd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NTYxMDIsImV4cCI6MjA3OTAzMjEwMn0.fB5aSqcGBB7sFoEA596QUDpP8iVO3WtoFltt4oUkqK8'; // 你的 Supabase API Key
       
       // 如果還沒設定 Supabase，系統會自動使用 localStorage（離線模式）
       const USE_SUPABASE = SUPABASE_URL && SUPABASE_KEY;
