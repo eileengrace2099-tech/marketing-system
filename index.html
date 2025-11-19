@@ -707,36 +707,37 @@
                 新增決策要點
               </button>
             </div>
-            <div className="space-y-3">
-              {items.length ? (
-                items.map((item, index) => (
+            {items.length ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {items.map((item, index) => (
                   <div
                     key={index}
-                    className="space-y-2 bg-slate-950/40 border border-slate-800 rounded-2xl p-4"
+                    className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2 min-h-[140px]"
                   >
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>決策要點 #{index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(index)}
+                        className="text-red-300 border border-red-500/40 rounded-full px-2 py-0.5"
+                      >
+                        刪除
+                      </button>
+                    </div>
                     <textarea
-                      className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2 min-h-[80px]"
-                      placeholder={`購買決策要點 #${index + 1}`}
+                      className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2 min-h-[80px] resize-none"
+                      placeholder="輸入內容"
                       value={item}
-                      onChange={(e) =>
-                        handleChange(index, e.target.value)
-                      }
+                      onChange={(e) => handleChange(index, e.target.value)}
                     />
-                    <button
-                      type="button"
-                      onClick={() => handleRemove(index)}
-                      className="text-xs text-red-300 border border-red-500/40 rounded-xl px-3 py-1"
-                    >
-                      刪除此要點
-                    </button>
                   </div>
-                ))
-              ) : (
-                <p className="text-xs text-slate-500 text-center py-4">
-                  尚未新增購買決策要點，點擊「新增決策要點」開始
-                </p>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 text-center py-4">
+                尚未新增購買決策要點，點擊「新增決策要點」開始
+              </p>
+            )}
           </div>
         );
       };
@@ -2165,7 +2166,16 @@
               : [...prev.users, payload];
             return { ...prev, users };
           });
-          resetForm();
+          
+          // 新增成功後，自動準備新增下一個帳號（無限新增）
+          if (!isEditing) {
+            setForm({ ...emptyUser, id: crypto.randomUUID() });
+            setIsEditing(false);
+            // 可選：顯示成功訊息
+            console.log(`✅ 帳號 "${payload.username}" 已成功新增`);
+          } else {
+            resetForm();
+          }
         };
 
         const handleDelete = (user) => {
