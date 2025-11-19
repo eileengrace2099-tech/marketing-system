@@ -414,6 +414,9 @@
         const [db, setDb] = useState(() => ensureDbShape(readFromStorage()));
         const [isLoading, setIsLoading] = useState(USE_SUPABASE);
         const [storageMode, setStorageMode] = useState(USE_SUPABASE ? 'supabase' : 'localStorage');
+        const [lastSaveTime, setLastSaveTime] = useState(null);
+        const [autoSyncEnabled, setAutoSyncEnabled] = useState(false); // 是否啟用自動同步
+        const [isSyncing, setIsSyncing] = useState(false);
 
         // 初始化：從 Supabase 載入資料
         useEffect(() => {
@@ -439,30 +442,95 @@
           }
         }, []);
 
-        // 儲存資料：同時寫入 Supabase 和 localStorage
+        // 手動同步函數
+        const manualSync = async () => {
+          if (!USE_SUPABASE || storageMode !== 'supabase') {
+            console.warn('⚠️ Supabase 未啟用或處於離線模式');
+            return false;
+          }
+          
+          setIsSyncing(true);
+          try {
+            // 總是先寫入 localStorage
+            saveToStorage(db);
+            
+            const success = await saveToSupabase(db);
+            if (success) {
+              setLastSaveTime(Date.now());
+              console.log('✅ 手動同步成功');
+              return true;
+            } else {
+              console.warn('⚠️ 手動同步失敗');
+              return false;
+            }
+          } finally {
+            setIsSyncing(false);
+          }
+        };
+
+        // 儲存資料：總是寫入 localStorage，但只在啟用自動同步時寫入 Supabase
         useEffect(() => {
           if (isLoading) return;
 
           // 總是寫入 localStorage（作為備份）
           saveToStorage(db);
 
-          // 如果 Supabase 可用，也寫入 Supabase
-          if (USE_SUPABASE && storageMode === 'supabase') {
+          // 如果啟用自動同步，才自動寫入 Supabase
+          if (USE_SUPABASE && storageMode === 'supabase' && autoSyncEnabled) {
             saveToSupabase(db).then((success) => {
-              if (!success) {
-                // 不要立即切換到離線模式，只顯示警告
-                // 讓使用者知道有問題，但資料已儲存在 localStorage
-                console.warn('⚠️ Supabase 儲存失敗，但資料已儲存在本地');
-                console.warn('💡 請檢查 Console 中的錯誤訊息，或重新整理頁面重試');
-                // 只有在連續失敗時才考慮切換（這裡先不切換，讓使用者知道問題）
+              if (success) {
+                setLastSaveTime(Date.now());
+                console.log('✅ 資料已自動同步到 Supabase');
               } else {
-                console.log('✅ 資料已成功同步到 Supabase');
+                console.warn('⚠️ Supabase 自動同步失敗，但資料已儲存在本地');
               }
             });
           }
-        }, [db, isLoading, storageMode]);
+        }, [db, isLoading, storageMode, autoSyncEnabled]);
 
-        return [db, setDb, { isLoading, storageMode }];
+        // 10分鐘自動儲存機制（追蹤資料變更時間）
+        useEffect(() => {
+          if (!USE_SUPABASE || storageMode !== 'supabase' || isLoading) return;
+
+          const AUTO_SAVE_INTERVAL = 10 * 60 * 1000; // 10分鐘
+          const dataChangeTime = Date.now();
+
+          // 如果沒有記錄最後儲存時間，先記錄當前時間
+          if (!lastSaveTime) {
+            setLastSaveTime(dataChangeTime);
+            return;
+          }
+
+          // 設定計時器，10分鐘後自動儲存
+          const timer = setTimeout(() => {
+            console.log('⏰ 10分鐘已過，自動儲存到雲端');
+            saveToStorage(db); // 確保本地有最新資料
+            saveToSupabase(db).then((success) => {
+              if (success) {
+                setLastSaveTime(Date.now());
+                console.log('✅ 自動儲存成功');
+              } else {
+                console.warn('⚠️ 自動儲存失敗');
+              }
+            });
+          }, AUTO_SAVE_INTERVAL);
+
+          return () => clearTimeout(timer);
+        }, [db, storageMode, isLoading]); // 當 db 變更時重置計時器
+
+        return [
+          db,
+          setDb,
+          {
+            isLoading,
+            storageMode,
+            manualSync,
+            isSyncing,
+            setAutoSyncEnabled,
+            autoSyncEnabled,
+            lastSaveTime
+          }
+        ];
       };
 
       const SectionCard = ({ title, actions, children }) => (
@@ -1640,7 +1708,7 @@
         </SectionCard>
       );
 
-      const ProductModule = ({ db, setDb }) => {
+      const ProductModule = ({ db, setDb, storageInfo = {} }) => {
         const [mode, setMode] = useState("list");
         const [editingProduct, setEditingProduct] = useState(null);
         const [selected, setSelected] = useState([]);
@@ -1659,7 +1727,7 @@
           });
         }, [db.products, search, filterCategory]);
 
-        const handleSaveProduct = (product) => {
+        const handleSaveProduct = async (product) => {
           const cleanProduct = sanitizeProduct(product);
           setDb((prev) => {
             const exists = prev.products.some((p) => p.id === cleanProduct.id);
@@ -1670,6 +1738,15 @@
               : [...prev.products, cleanProduct];
             return { ...prev, products };
           });
+          
+          // 儲存後立即同步到雲端（如果沒有啟用自動同步）
+          if (storageInfo.storageMode === 'supabase' && !storageInfo.autoSyncEnabled && storageInfo.manualSync) {
+            // 使用 setTimeout 確保 db 已更新
+            setTimeout(async () => {
+              await storageInfo.manualSync();
+            }, 100);
+          }
+          
           setMode("list");
           setEditingProduct(null);
         };
@@ -2396,11 +2473,30 @@
                 </div>
                 <div className="flex items-center gap-4">
                   {storageInfo.storageMode && (
-                    <div className="text-xs px-2 py-1 rounded-full border border-slate-700 bg-slate-900/50">
-                      {storageInfo.storageMode === 'supabase' ? (
-                        <span className="text-emerald-400">☁️ 雲端同步</span>
-                      ) : (
-                        <span className="text-slate-400">💾 離線模式</span>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs px-2 py-1 rounded-full border border-slate-700 bg-slate-900/50">
+                        {storageInfo.storageMode === 'supabase' ? (
+                          <span className="text-emerald-400">☁️ 雲端同步</span>
+                        ) : (
+                          <span className="text-slate-400">💾 離線模式</span>
+                        )}
+                      </div>
+                      {storageInfo.storageMode === 'supabase' && manualSync && (
+                        <button
+                          onClick={async () => {
+                            const success = await manualSync();
+                            if (success) {
+                              alert('✅ 資料已成功同步到雲端');
+                            } else {
+                              alert('⚠️ 同步失敗，請檢查網路連線');
+                            }
+                          }}
+                          disabled={isSyncing}
+                          className="px-3 py-1 text-xs rounded-full border border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          title="立即同步到雲端"
+                        >
+                          {isSyncing ? '同步中...' : '🔄 同步'}
+                        </button>
                       )}
                     </div>
                   )}
@@ -2477,7 +2573,7 @@
             </header>
             <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
               {activeTab === "products" && user.permissions?.products && (
-                <ProductModule db={db} setDb={setDb} />
+                <ProductModule db={db} setDb={setDb} storageInfo={storageInfo} />
               )}
               {activeTab === "products" && !user.permissions?.products && (
                 <SectionCard title="無權限">
@@ -2582,6 +2678,7 @@
 
       const App = () => {
         const [db, setDb, storageInfo] = usePersistentDb();
+        const { manualSync, isSyncing, setAutoSyncEnabled, autoSyncEnabled } = storageInfo;
         const [users, setUsers] = useState([]); // 多個登入的使用者
         const [activeUserId, setActiveUserId] = useState(null); // 當前選中的使用者ID
 
