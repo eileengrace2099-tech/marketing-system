@@ -16,12 +16,38 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@8.0.1/build/index.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   </head>
   <body class="bg-slate-950 text-slate-100 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
       const { useState, useEffect, useMemo } = React;
+
+      // ============================================
+      // 🔧 Supabase 設定
+      // ============================================
+      // 方法 1：使用 Zeabur 環境變數（推薦，更安全）
+      // 在 Zeabur → Settings → Environment Variables 設定：
+      // - VITE_SUPABASE_URL = 你的 Supabase Project URL
+      // - VITE_SUPABASE_KEY = 你的 Supabase anon public key
+      //
+      // 方法 2：直接填入（僅用於本地測試）
+      // 如果環境變數不存在，會使用下面的預設值
+      // ============================================
+      const SUPABASE_URL = 
+        import.meta.env?.VITE_SUPABASE_URL || 
+        window.VITE_SUPABASE_URL || 
+        ''; // 本地測試時可填入：'https://rocxusxophynujcrrigu.supabase.co/'
+      
+      const SUPABASE_KEY = 
+        import.meta.env?.VITE_SUPABASE_KEY || 
+        window.VITE_SUPABASE_KEY || 
+        ''; // 本地測試時可填入：'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvY3h1c3hvcGh5bnVqY3JyaWd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NTYxMDIsImV4cCI6MjA3OTAzMjEwMn0.fB5aSqcGBB7sFoEA596QUDpP8iVO3WtoFltt4oUkqK8'
+      
+      // 如果還沒設定 Supabase，系統會自動使用 localStorage（離線模式）
+      const USE_SUPABASE = SUPABASE_URL && SUPABASE_KEY;
+      const supabase = USE_SUPABASE ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
       const STORAGE_KEY = "marketing-system-db";
 
@@ -119,8 +145,170 @@
         };
       };
 
-      const saveToStorage = (data) =>
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // ============================================
+      // 📦 Supabase 資料操作函數
+      // ============================================
+      const loadFromSupabase = async () => {
+        if (!USE_SUPABASE) return null;
+        
+        try {
+          // 載入 users
+          const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('*');
+          if (usersError) throw usersError;
+
+          // 載入 products
+          const { data: productsData, error: productsError } = await supabase
+            .from('products')
+            .select('*');
+          if (productsError) throw productsError;
+
+          // 載入 reference_options
+          const { data: refData, error: refError } = await supabase
+            .from('reference_options')
+            .select('*');
+          if (refError) throw refError;
+
+          // 轉換 reference_options 格式
+          const referenceOptions = {};
+          if (refData) {
+            refData.forEach((item) => {
+              referenceOptions[item.option_key] = item.options || [];
+            });
+          }
+
+          // 轉換 users 格式（Supabase 使用 snake_case，前端使用 camelCase）
+          const users = (usersData || []).map((user) => ({
+            id: user.id,
+            username: user.username,
+            password: user.password,
+            email: user.email,
+            displayName: user.display_name,
+            role: user.role,
+            permissions: user.permissions || { products: false, ads: false },
+          }));
+
+          // 轉換 products 格式
+          const products = (productsData || []).map((product) => ({
+            id: product.id,
+            productNumber: product.product_number,
+            category: product.category,
+            usageFlow: product.usage_flow,
+            usageMethod: product.usage_method,
+            nameZh: product.name_zh,
+            nameEn: product.name_en,
+            nickname: product.nickname,
+            shortDescription: product.short_description,
+            purchaseDecision: product.purchase_decision,
+            channelLinks: product.channel_links || {},
+            features: product.features || [],
+            audiences: product.audiences || [],
+            painPoints: product.pain_points || [],
+            awards: product.awards || [],
+            images: product.images || [],
+            channelSkus: product.channel_skus || [],
+            recommendedCombos: product.recommended_combos || [],
+            recommendedOthers: product.recommended_others || [],
+            highConversionAssets: product.high_conversion_assets || [],
+            faqs: product.faqs || [],
+          }));
+
+          return {
+            users: users,
+            products: products,
+            referenceOptions: referenceOptions,
+          };
+        } catch (error) {
+          console.error('Supabase 載入失敗，改用 localStorage', error);
+          return null;
+        }
+      };
+
+      const saveToSupabase = async (data) => {
+        if (!USE_SUPABASE) return false;
+
+        try {
+          // 儲存 users
+          if (data.users) {
+            for (const user of data.users) {
+              const { error } = await supabase
+                .from('users')
+                .upsert({
+                  id: user.id,
+                  username: user.username,
+                  password: user.password,
+                  email: user.email || null,
+                  display_name: user.displayName,
+                  role: user.role,
+                  permissions: user.permissions,
+                }, { onConflict: 'id' });
+              if (error) throw error;
+            }
+          }
+
+          // 儲存 products
+          if (data.products) {
+            for (const product of data.products) {
+              const { error } = await supabase
+                .from('products')
+                .upsert({
+                  id: product.id,
+                  product_number: product.productNumber,
+                  category: product.category,
+                  usage_flow: product.usageFlow,
+                  usage_method: product.usageMethod,
+                  name_zh: product.nameZh,
+                  name_en: product.nameEn,
+                  nickname: product.nickname,
+                  short_description: product.shortDescription,
+                  purchase_decision: product.purchaseDecision,
+                  channel_links: product.channelLinks || {},
+                  features: product.features || [],
+                  audiences: product.audiences || [],
+                  pain_points: product.painPoints || [],
+                  awards: product.awards || [],
+                  images: product.images || [],
+                  channel_skus: product.channelSkus || [],
+                  recommended_combos: product.recommendedCombos || [],
+                  recommended_others: product.recommendedOthers || [],
+                  high_conversion_assets: product.highConversionAssets || [],
+                  faqs: product.faqs || [],
+                }, { onConflict: 'id' });
+              if (error) throw error;
+            }
+          }
+
+          // 儲存 reference_options
+          if (data.referenceOptions) {
+            for (const [key, options] of Object.entries(data.referenceOptions)) {
+              const { error } = await supabase
+                .from('reference_options')
+                .upsert({
+                  option_key: key,
+                  options: options,
+                }, { onConflict: 'option_key' });
+              if (error) throw error;
+            }
+          }
+
+          return true;
+        } catch (error) {
+          console.error('Supabase 儲存失敗，改用 localStorage', error);
+          return false;
+        }
+      };
+
+      // ============================================
+      // 💾 本地儲存（localStorage）函數（備用）
+      // ============================================
+      const saveToStorage = (data) => {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } catch (error) {
+          console.error('localStorage 儲存失敗', error);
+        }
+      };
 
       const readFromStorage = () => {
         try {
@@ -195,12 +383,52 @@
 
       const usePersistentDb = () => {
         const [db, setDb] = useState(() => ensureDbShape(readFromStorage()));
+        const [isLoading, setIsLoading] = useState(USE_SUPABASE);
+        const [storageMode, setStorageMode] = useState(USE_SUPABASE ? 'supabase' : 'localStorage');
 
+        // 初始化：從 Supabase 載入資料
         useEffect(() => {
-          saveToStorage(db);
-        }, [db]);
+          if (USE_SUPABASE) {
+            loadFromSupabase().then((supabaseData) => {
+              if (supabaseData) {
+                const merged = ensureDbShape({
+                  ...readFromStorage(),
+                  ...supabaseData,
+                });
+                setDb(merged);
+                setStorageMode('supabase');
+                console.log('✅ Supabase 連線成功，資料已從雲端載入');
+              } else {
+                setStorageMode('localStorage');
+                console.log('ℹ️ 使用 localStorage（離線模式）');
+              }
+              setIsLoading(false);
+            });
+          } else {
+            setIsLoading(false);
+            console.log('ℹ️ 使用 localStorage（離線模式）');
+          }
+        }, []);
 
-        return [db, setDb];
+        // 儲存資料：同時寫入 Supabase 和 localStorage
+        useEffect(() => {
+          if (isLoading) return;
+
+          // 總是寫入 localStorage（作為備份）
+          saveToStorage(db);
+
+          // 如果 Supabase 可用，也寫入 Supabase
+          if (USE_SUPABASE && storageMode === 'supabase') {
+            saveToSupabase(db).then((success) => {
+              if (!success) {
+                setStorageMode('localStorage');
+                console.warn('⚠️ Supabase 儲存失敗，已切換到 localStorage');
+              }
+            });
+          }
+        }, [db, isLoading, storageMode]);
+
+        return [db, setDb, { isLoading, storageMode }];
       };
 
       const SectionCard = ({ title, actions, children }) => (
@@ -1741,7 +1969,7 @@
         );
       };
 
-      const Dashboard = ({ user, onLogout, db, setDb }) => {
+      const Dashboard = ({ user, onLogout, db, setDb, storageInfo = {} }) => {
         const availableTabs = React.useMemo(
           () =>
             [
@@ -1784,6 +2012,15 @@
                   <h1 className="text-xl font-semibold">行銷部管理系統</h1>
                 </div>
                 <div className="flex items-center gap-4">
+                  {storageInfo.storageMode && (
+                    <div className="text-xs px-2 py-1 rounded-full border border-slate-700 bg-slate-900/50">
+                      {storageInfo.storageMode === 'supabase' ? (
+                        <span className="text-emerald-400">☁️ 雲端同步</span>
+                      ) : (
+                        <span className="text-slate-400">💾 離線模式</span>
+                      )}
+                    </div>
+                  )}
                   <div className="text-sm">
                     <p className="font-semibold">{user.displayName}</p>
                     <p className="text-slate-400 text-xs uppercase">{user.role}</p>
@@ -1840,7 +2077,7 @@
       };
 
       const App = () => {
-        const [db, setDb] = usePersistentDb();
+        const [db, setDb, storageInfo] = usePersistentDb();
         const [user, setUser] = useState(null);
 
         const refreshUser = (target) => {
@@ -1895,6 +2132,7 @@
             onLogout={handleLogout}
             db={db}
             setDb={setDb}
+            storageInfo={storageInfo}
           />
         ) : (
           <LoginForm onLogin={handleLogin} onResetStorage={handleResetStorage} />
