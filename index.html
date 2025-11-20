@@ -971,12 +971,89 @@
         );
       };
 
+      // 影片上傳處理函數
+      const handleVideoUpload = (file, index, items, handleChange) => {
+        if (!file.type.startsWith('video/')) {
+          alert('請選擇影片檔案');
+          return;
+        }
+
+        // 限制檔案大小為 50MB
+        const maxSize = 50 * 1024 * 1024;
+        if (file.size > maxSize) {
+          alert('影片檔案大小不能超過 50MB');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          // 儲存為 base64
+          const videoData = e.target.result;
+          
+          // 獲取第一個 CUT 作為預覽（從影片中截取第一幀）
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.muted = true;
+          video.playsInline = true;
+          
+          video.onloadedmetadata = () => {
+            video.currentTime = 0.1; // 0.1 秒處作為預覽
+          };
+          
+          video.onseeked = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  const previewReader = new FileReader();
+                  previewReader.onload = (previewEvent) => {
+                    const previewData = previewEvent.target.result;
+                    handleChange(index, 'video', videoData);
+                    handleChange(index, 'preview', previewData);
+                    handleChange(index, 'videoName', file.name);
+                  };
+                  previewReader.readAsDataURL(blob);
+                } else {
+                  // 如果截圖失敗，使用預設預覽
+                  handleChange(index, 'video', videoData);
+                  handleChange(index, 'preview', '');
+                  handleChange(index, 'videoName', file.name);
+                }
+              }, 'image/jpeg', 0.8);
+            } catch (error) {
+              console.error('截取預覽失敗:', error);
+              // 如果截圖失敗，仍然儲存影片
+              handleChange(index, 'video', videoData);
+              handleChange(index, 'preview', '');
+              handleChange(index, 'videoName', file.name);
+            }
+          };
+          
+          video.onerror = () => {
+            // 如果載入失敗，仍然儲存影片（可能是格式問題）
+            handleChange(index, 'video', videoData);
+            handleChange(index, 'preview', '');
+            handleChange(index, 'videoName', file.name);
+          };
+          
+          video.src = videoData;
+        };
+        reader.readAsDataURL(file);
+      };
+
       // 高轉換素材編輯器
       const HighConversionEditor = ({ items = [], onChange }) => {
+        const [playingIndex, setPlayingIndex] = useState(null);
+
         const handleAdd = () =>
           onChange([
             ...(items || []),
-            { title: "", content: "", link: "" },
+            { title: "", content: "", link: "", video: "", preview: "", videoName: "" },
           ]);
 
         const handleChange = (index, field, value) => {
@@ -989,6 +1066,17 @@
 
         const handleRemove = (index) => {
           onChange(items.filter((_, idx) => idx !== index));
+        };
+
+        const handleDownload = (item, index) => {
+          if (item.video) {
+            const link = document.createElement('a');
+            link.href = item.video;
+            link.download = item.videoName || `video_${index + 1}.mp4`;
+            link.click();
+          } else if (item.link) {
+            window.open(item.link, '_blank');
+          }
         };
 
         return (
@@ -1034,6 +1122,96 @@
                         handleChange(index, "link", e.target.value)
                       }
                     />
+                    
+                    {/* 影片上傳 */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-slate-400">影片素材（可選，最大 50MB）</label>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2 text-xs"
+                        onChange={(e) => {
+                          if (e.target.files.length > 0) {
+                            handleVideoUpload(e.target.files[0], index, items, handleChange);
+                          }
+                          e.target.value = '';
+                        }}
+                      />
+                      {item.video && (
+                        <div className="relative">
+                          {playingIndex === index ? (
+                            <div className="space-y-2">
+                              <video
+                                controls
+                                className="w-full rounded-xl border border-slate-800"
+                                src={item.video}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setPlayingIndex(null)}
+                                className="text-xs text-slate-400 hover:text-slate-200"
+                              >
+                                關閉播放
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="relative group">
+                              {item.preview ? (
+                                <img
+                                  src={item.preview}
+                                  alt="預覽"
+                                  className="w-full rounded-xl border border-slate-800 cursor-pointer"
+                                  onClick={() => setPlayingIndex(index)}
+                                />
+                              ) : (
+                                <div
+                                  className="w-full h-48 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center cursor-pointer hover:bg-slate-800"
+                                  onClick={() => setPlayingIndex(index)}
+                                >
+                                  <span className="text-slate-400">點擊播放影片</span>
+                                </div>
+                              )}
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black/50 rounded-full p-3">
+                                  <span className="text-white text-2xl">▶</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {item.videoName && (
+                            <p className="text-xs text-slate-400 mt-1">{item.videoName}</p>
+                          )}
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => setPlayingIndex(playingIndex === index ? null : index)}
+                              className="px-3 py-1 text-xs rounded-xl border border-emerald-400/40 text-emerald-300"
+                            >
+                              {playingIndex === index ? '關閉' : '播放'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownload(item, index)}
+                              className="px-3 py-1 text-xs rounded-xl border border-slate-700 text-slate-300"
+                            >
+                              下載
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleChange(index, 'video', '');
+                                handleChange(index, 'preview', '');
+                                handleChange(index, 'videoName', '');
+                              }}
+                              className="px-3 py-1 text-xs rounded-xl border border-red-500/40 text-red-300"
+                            >
+                              移除影片
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => handleRemove(index)}
@@ -1174,7 +1352,7 @@
         );
       };
 
-      const ExportPanel = ({ selectedProducts }) => {
+      const ExportPanel = ({ selectedProducts, db, setDb, currentUser }) => {
         const [fields, setFields] = useState([
           "productNumber",
           "nameZh",
@@ -1253,11 +1431,24 @@
           return String(value ?? "");
         };
 
+        // 獲取欄位的中文標籤
+        const getFieldLabel = (key) => {
+          const config = fieldConfig.find((f) => f.key === key);
+          return config ? config.label : key;
+        };
+
+        // 獲取欄位的完整名稱（英文 + 中文）
+        const getFieldFullName = (key) => {
+          const label = getFieldLabel(key);
+          return `${key} (${label})`;
+        };
+
         const buildRows = () =>
           selectedProducts.map((product) => {
             const row = {};
             fields.forEach((field) => {
-              row[field] = formatFieldValue(field, product[field]);
+              // 使用完整名稱（英文 + 中文）作為 key
+              row[getFieldFullName(field)] = formatFieldValue(field, product[field]);
             });
             return row;
           });
@@ -1283,6 +1474,7 @@
               }
               let line = 0;
               Object.entries(row).forEach(([key, value]) => {
+                // key 已經是完整名稱（英文 + 中文）
                 const text = `${key}: ${value}`;
                 const lines = doc.splitTextToSize(text, 500);
                 doc.text(lines, 40, 60 + line * 16 + index * 200);
@@ -1352,7 +1544,7 @@
                   </label>
                 ))}
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <button
                   onClick={() => handleExport("excel")}
                   className="flex-1 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/50"
@@ -1373,25 +1565,422 @@
                 </button>
               </div>
               {previewOpen && (
-                <div className="border border-slate-800 rounded-xl p-3 bg-slate-950/60 space-y-2 max-h-64 overflow-auto">
-                  {selectedProducts.map((product) => (
-                    <div key={product.id} className="border border-slate-800 rounded-xl p-3">
-                      <p className="font-semibold">{product.nameZh}</p>
-                      <p className="text-xs text-slate-400">{product.productNumber}</p>
-                      <div className="text-xs text-slate-300 mt-2 space-y-1">
-                        {fields.map((field) => (
-                          <p key={field} className="whitespace-pre-line">
-                            <span className="text-slate-500">{field}：</span>
-                            {formatFieldValue(field, product[field]) || "-"}
-                          </p>
-                        ))}
+                <div className="border border-slate-800 rounded-xl p-3 bg-slate-950/60 space-y-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-slate-400">預覽內容</p>
+                    <button
+                      onClick={() => {
+                        // 生成所有產品的文字內容
+                        const content = selectedProducts.map((product) => {
+                          const productText = [
+                            `產品名稱：${product.nameZh || "-"}`,
+                            `產品編號：${product.productNumber || "-"}`,
+                            ...fields.map((field) => {
+                              const label = fieldConfig.find((f) => f.key === field)?.label || field;
+                              const value = formatFieldValue(field, product[field]) || "-";
+                              return `${field} (${label})：${value}`;
+                            })
+                          ].join('\n');
+                          return productText;
+                        }).join('\n\n' + '='.repeat(50) + '\n\n');
+                        
+                        navigator.clipboard.writeText(content).then(() => {
+                          alert('✅ 內容已複製到剪貼簿！');
+                        }).catch(() => {
+                          // 備用方案：使用 textarea
+                          const textarea = document.createElement('textarea');
+                          textarea.value = content;
+                          textarea.style.position = 'fixed';
+                          textarea.style.opacity = '0';
+                          document.body.appendChild(textarea);
+                          textarea.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(textarea);
+                          alert('✅ 內容已複製到剪貼簿！');
+                        });
+                      }}
+                      className="px-3 py-1 text-xs rounded-xl border border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20 transition"
+                    >
+                      📋 一鍵複製全部內容
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-auto space-y-2">
+                    {selectedProducts.map((product) => (
+                      <div key={product.id} className="border border-slate-800 rounded-xl p-3">
+                        <p className="font-semibold">{product.nameZh}</p>
+                        <p className="text-xs text-slate-400">{product.productNumber}</p>
+                        <div className="text-xs text-slate-300 mt-2 space-y-1">
+                          {fields.map((field) => {
+                            const label = fieldConfig.find((f) => f.key === field)?.label || field;
+                            return (
+                              <p key={field} className="whitespace-pre-line">
+                                <span className="text-slate-500">{field} ({label})：</span>
+                                {formatFieldValue(field, product[field]) || "-"}
+                              </p>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           </SectionCard>
+        );
+      };
+
+      // 高轉換素材顯示組件
+      const HighConversionAssetDisplay = ({ item, index }) => {
+        const [isPlaying, setIsPlaying] = useState(false);
+
+        const handleDownload = () => {
+          if (item.video) {
+            const link = document.createElement('a');
+            link.href = item.video;
+            link.download = item.videoName || `video_${index + 1}.mp4`;
+            link.click();
+          } else if (item.link) {
+            window.open(item.link, '_blank');
+          }
+        };
+
+        return (
+          <div className="bg-slate-800/50 p-3 rounded-lg space-y-2">
+            <p className="text-slate-200 font-semibold">{item.title || "-"}</p>
+            {item.content && (
+              <p className="text-slate-300 text-xs">{item.content}</p>
+            )}
+            {item.video ? (
+              <div className="space-y-2">
+                {isPlaying ? (
+                  <div className="space-y-2">
+                    <video
+                      controls
+                      className="w-full rounded-xl border border-slate-700"
+                      src={item.video}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsPlaying(false)}
+                      className="text-xs text-slate-400 hover:text-slate-200"
+                    >
+                      關閉播放
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative group cursor-pointer" onClick={() => setIsPlaying(true)}>
+                    {item.preview ? (
+                      <img
+                        src={item.preview}
+                        alt="預覽"
+                        className="w-full rounded-xl border border-slate-700"
+                      />
+                    ) : (
+                      <div className="w-full h-48 bg-slate-900 rounded-xl border border-slate-700 flex items-center justify-center">
+                        <span className="text-slate-400">點擊播放影片</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-black/50 rounded-full p-3">
+                        <span className="text-white text-2xl">▶</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {item.videoName && (
+                  <p className="text-xs text-slate-400">{item.videoName}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className="px-3 py-1 text-xs rounded-xl border border-emerald-400/40 text-emerald-300"
+                  >
+                    {isPlaying ? '關閉' : '播放'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="px-3 py-1 text-xs rounded-xl border border-slate-700 text-slate-300"
+                  >
+                    下載
+                  </button>
+                </div>
+              </div>
+            ) : item.link && (
+              <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
+                {item.link}
+              </a>
+            )}
+          </div>
+        );
+      };
+
+      // 產品詳情顯示頁籤組件
+      const ProductDetailsTabs = ({ product }) => {
+        const [activeTab, setActiveTab] = useState('content');
+
+        const tabs = [
+          { key: 'content', label: '產品內容' },
+          { key: 'audience', label: '受眾與痛點' },
+          { key: 'channel', label: '通路管理' },
+          { key: 'decision', label: '購買決策與問答' },
+          { key: 'recommend', label: '推薦與素材' },
+        ];
+
+        return (
+          <div className="space-y-4">
+            {/* 頁籤導航 */}
+            <div className="flex gap-2 border-b border-slate-800 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+                    activeTab === tab.key
+                      ? 'border-emerald-400 text-emerald-300'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 頁籤內容 */}
+            <div className="min-h-[300px]">
+              {activeTab === 'content' && (
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="text-slate-400 mb-2">五大特色</p>
+                    <div className="flex flex-wrap gap-2">
+                      {product.features?.filter(f => f).map((f, idx) => (
+                        <Badge key={idx} label={f} />
+                      ))}
+                      {(!product.features || product.features.filter(f => f).length === 0) && (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">產品介紹短文</p>
+                    <p className="whitespace-pre-wrap">{product.shortDescription || "-"}</p>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'audience' && (
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="text-slate-400 mb-2">產品受眾</p>
+                    <div className="flex flex-wrap gap-2">
+                      {product.audiences?.map((a, idx) => (
+                        <Badge key={idx} label={a} />
+                      ))}
+                      {(!product.audiences || product.audiences.length === 0) && (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">產品痛點</p>
+                    <div className="flex flex-wrap gap-2">
+                      {product.painPoints?.map((p, idx) => (
+                        <Badge key={idx} label={p} />
+                      ))}
+                      {(!product.painPoints || product.painPoints.length === 0) && (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">得獎榮譽</p>
+                    <div className="flex flex-wrap gap-2">
+                      {product.awards?.map((a, idx) => (
+                        <Badge key={idx} label={a} />
+                      ))}
+                      {(!product.awards || product.awards.length === 0) && (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'channel' && (
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="text-slate-400 mb-2">通路貨號</p>
+                    <div className="space-y-2">
+                      {product.channelSkus?.length > 0 ? (
+                        product.channelSkus.map((item, idx) => (
+                          <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
+                            <span className="text-slate-300">{item.channel}</span>：
+                            <span className="text-slate-200 ml-1">{item.sku}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">通路短連結</p>
+                    <div className="space-y-2">
+                      {product.channelLinks && Object.keys(product.channelLinks).length > 0 ? (
+                        Object.entries(product.channelLinks).map(([channel, url]) => {
+                          const finalUrl = url && url.trim() 
+                            ? (url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`)
+                            : null;
+                          return (
+                            <div key={channel} className="flex items-center justify-between text-xs bg-slate-800/50 p-2 rounded">
+                              <div className="flex-1">
+                                <span className="text-slate-300">{channel}</span>：
+                                {finalUrl ? (
+                                  <a href={finalUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline ml-1">
+                                    {url}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-500 ml-1">{url || "-"}</span>
+                                )}
+                              </div>
+                              {finalUrl && (
+                                <button
+                                  onClick={() => window.open(finalUrl, '_blank', 'noopener,noreferrer')}
+                                  className="ml-2 px-2 py-1 rounded border border-emerald-400/40 bg-emerald-400/10 text-emerald-300 text-xs hover:bg-emerald-400/20 transition whitespace-nowrap"
+                                  title="在新視窗開啟連結"
+                                >
+                                  前往
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  {product.images?.length > 0 && (
+                    <div>
+                      <p className="text-slate-400 mb-2">產品圖片</p>
+                      <div className="grid grid-cols-6 gap-2">
+                        {product.images.map((img, idx) => (
+                          <img
+                            key={idx}
+                            src={img}
+                            alt="product"
+                            className="w-full h-[100px] object-cover rounded-xl border border-slate-800"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'decision' && (
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="text-slate-400 mb-2">購買決策</p>
+                    <div className="space-y-2">
+                      {Array.isArray(product.purchaseDecision) && product.purchaseDecision.length > 0 ? (
+                        product.purchaseDecision.map((item, idx) => (
+                          <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
+                            {item}
+                          </div>
+                        ))
+                      ) : product.purchaseDecision ? (
+                        <div className="text-xs bg-slate-800/50 p-2 rounded">
+                          {product.purchaseDecision}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">常見問答</p>
+                    <div className="space-y-2">
+                      {product.faqs?.length > 0 ? (
+                        product.faqs.map((faq, idx) => (
+                          <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
+                            <p className="text-emerald-400 font-semibold mb-1">Q{idx + 1}: {faq.question || "-"}</p>
+                            <p className="text-slate-300 text-xs">A: {faq.answer || "-"}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'recommend' && (
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="text-slate-400 mb-2">推薦搭配產品</p>
+                    <div className="space-y-2">
+                      {product.recommendedCombos?.length > 0 ? (
+                        product.recommendedCombos.map((item, idx) => (
+                          <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
+                            <p className="text-slate-200 font-semibold">{item.name || "-"}</p>
+                            {item.link && (
+                              <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
+                                {item.link}
+                              </a>
+                            )}
+                            {item.reason && (
+                              <p className="text-slate-400 text-xs mt-1">原因：{item.reason}</p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">推薦其他產品</p>
+                    <div className="space-y-2">
+                      {product.recommendedOthers?.length > 0 ? (
+                        product.recommendedOthers.map((item, idx) => (
+                          <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
+                            <p className="text-slate-200 font-semibold">{item.name || "-"}</p>
+                            {item.link && (
+                              <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
+                                {item.link}
+                              </a>
+                            )}
+                            {item.reason && (
+                              <p className="text-slate-400 text-xs mt-1">原因：{item.reason}</p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">高轉換素材</p>
+                    <div className="space-y-2">
+                      {product.highConversionAssets?.length > 0 ? (
+                        product.highConversionAssets.map((item, idx) => (
+                          <HighConversionAssetDisplay key={idx} item={item} index={idx} />
+                        ))
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         );
       };
 
@@ -1439,6 +2028,10 @@
             <div className="min-h-[400px]">
               {activeTab === 'content' && (
                 <div className="space-y-4">
+                  <FiveFeaturesInput
+                    values={form.features}
+                    onChange={(values) => updateField("features", values)}
+                  />
                   <div className="space-y-2">
                     <label className="text-sm">產品介紹短文</label>
                     <textarea
@@ -1447,10 +2040,6 @@
                       onChange={(e) => updateField("shortDescription", e.target.value)}
                     ></textarea>
                   </div>
-                  <FiveFeaturesInput
-                    values={form.features}
-                    onChange={(values) => updateField("features", values)}
-                  />
                 </div>
               )}
 
@@ -1533,26 +2122,44 @@
                     </div>
                     <div className="space-y-3">
                       {referenceOptions.channelLinks.length ? (
-                        referenceOptions.channelLinks.map((channel) => (
-                          <div
-                            key={channel}
-                            className="grid md:grid-cols-3 gap-3 items-center bg-slate-950/40 p-3 rounded-2xl border border-slate-800"
-                          >
-                            <div className="text-sm font-medium text-slate-200">
-                              {channel}
+                        referenceOptions.channelLinks.map((channel) => {
+                          const url = form.channelLinks?.[channel] || "";
+                          return (
+                            <div
+                              key={channel}
+                              className="grid md:grid-cols-3 gap-3 items-center bg-slate-950/40 p-3 rounded-2xl border border-slate-800"
+                            >
+                              <div className="text-sm font-medium text-slate-200">
+                                {channel}
+                              </div>
+                              <div className="md:col-span-2 flex gap-2">
+                                <input
+                                  className="flex-1 bg-transparent border border-slate-800 rounded-xl px-3 py-2"
+                                  placeholder="輸入短網址或完整網址"
+                                  value={url}
+                                  onChange={(e) =>
+                                    handleChannelLinkChange(channel, e.target.value)
+                                  }
+                                />
+                                {url && url.trim() && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const finalUrl = url.startsWith('http://') || url.startsWith('https://') 
+                                        ? url 
+                                        : `https://${url}`;
+                                      window.open(finalUrl, '_blank', 'noopener,noreferrer');
+                                    }}
+                                    className="px-3 py-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 text-emerald-300 text-xs hover:bg-emerald-400/20 transition whitespace-nowrap"
+                                    title="在新視窗開啟連結"
+                                  >
+                                    前往
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            <div className="md:col-span-2">
-                              <input
-                                className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2"
-                                placeholder="輸入短網址或完整網址"
-                                value={form.channelLinks?.[channel] || ""}
-                                onChange={(e) =>
-                                  handleChannelLinkChange(channel, e.target.value)
-                                }
-                              />
-                            </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="text-sm text-slate-500 text-center py-4">
                           尚未設定通路，請至右側「通路管理」新增。
@@ -1885,7 +2492,7 @@
         </SectionCard>
       );
 
-      const ProductModule = ({ db, setDb, storageInfo = {} }) => {
+      const ProductModule = ({ db, setDb, storageInfo = {}, currentUser }) => {
         const [mode, setMode] = useState("list");
         const [editingProduct, setEditingProduct] = useState(null);
         const [selected, setSelected] = useState([]);
@@ -2067,7 +2674,8 @@
                     </div>
                   }
                 >
-                  <div className="grid md:grid-cols-2 gap-4 text-sm">
+                  {/* 基本資訊 */}
+                  <div className="grid md:grid-cols-2 gap-4 text-sm mb-6">
                     <div>
                       <p className="text-slate-400">產品編號</p>
                       <p>{editingProduct.productNumber || "-"}</p>
@@ -2096,203 +2704,19 @@
                       <p className="text-slate-400">產品使用方式</p>
                       <p>{editingProduct.usageMethod || "-"}</p>
                     </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">五大特色</p>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {editingProduct.features?.filter(f => f).map((f, idx) => (
-                          <Badge key={idx} label={f} />
-                        ))}
-                        {(!editingProduct.features || editingProduct.features.filter(f => f).length === 0) && (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">產品受眾</p>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {editingProduct.audiences?.map((a, idx) => (
-                          <Badge key={idx} label={a} />
-                        ))}
-                        {(!editingProduct.audiences || editingProduct.audiences.length === 0) && (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">產品痛點</p>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {editingProduct.painPoints?.map((p, idx) => (
-                          <Badge key={idx} label={p} />
-                        ))}
-                        {(!editingProduct.painPoints || editingProduct.painPoints.length === 0) && (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">得獎榮譽</p>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {editingProduct.awards?.map((a, idx) => (
-                          <Badge key={idx} label={a} />
-                        ))}
-                        {(!editingProduct.awards || editingProduct.awards.length === 0) && (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">通路貨號</p>
-                      <div className="space-y-2 mt-1">
-                        {editingProduct.channelSkus?.length > 0 ? (
-                          editingProduct.channelSkus.map((item, idx) => (
-                            <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
-                              <span className="text-slate-300">{item.channel}</span>：
-                              <span className="text-slate-200 ml-1">{item.sku}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">通路短連結</p>
-                      <div className="space-y-2 mt-1">
-                        {editingProduct.channelLinks && Object.keys(editingProduct.channelLinks).length > 0 ? (
-                          Object.entries(editingProduct.channelLinks).map(([channel, url]) => (
-                            <div key={channel} className="text-xs bg-slate-800/50 p-2 rounded">
-                              <span className="text-slate-300">{channel}</span>：
-                              <a href={url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline ml-1">
-                                {url}
-                              </a>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">購買決策</p>
-                      <div className="space-y-2 mt-1">
-                        {Array.isArray(editingProduct.purchaseDecision) && editingProduct.purchaseDecision.length > 0 ? (
-                          editingProduct.purchaseDecision.map((item, idx) => (
-                            <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
-                              {item}
-                            </div>
-                          ))
-                        ) : editingProduct.purchaseDecision ? (
-                          <div className="text-xs bg-slate-800/50 p-2 rounded">
-                            {editingProduct.purchaseDecision}
-                          </div>
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">常見問答</p>
-                      <div className="space-y-2 mt-1">
-                        {editingProduct.faqs?.length > 0 ? (
-                          editingProduct.faqs.map((faq, idx) => (
-                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
-                              <p className="text-emerald-400 font-semibold mb-1">Q{idx + 1}: {faq.question || "-"}</p>
-                              <p className="text-slate-300 text-xs">A: {faq.answer || "-"}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">產品介紹短文</p>
-                      <p className="mt-1 whitespace-pre-wrap">{editingProduct.shortDescription || "-"}</p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">推薦搭配產品</p>
-                      <div className="space-y-2 mt-1">
-                        {editingProduct.recommendedCombos?.length > 0 ? (
-                          editingProduct.recommendedCombos.map((item, idx) => (
-                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
-                              <p className="text-slate-200 font-semibold">{item.name || "-"}</p>
-                              {item.link && (
-                                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
-                                  {item.link}
-                                </a>
-                              )}
-                              {item.reason && (
-                                <p className="text-slate-400 text-xs mt-1">原因：{item.reason}</p>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">推薦其他產品</p>
-                      <div className="space-y-2 mt-1">
-                        {editingProduct.recommendedOthers?.length > 0 ? (
-                          editingProduct.recommendedOthers.map((item, idx) => (
-                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
-                              <p className="text-slate-200 font-semibold">{item.name || "-"}</p>
-                              {item.link && (
-                                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
-                                  {item.link}
-                                </a>
-                              )}
-                              {item.reason && (
-                                <p className="text-slate-400 text-xs mt-1">原因：{item.reason}</p>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-slate-400">高轉換素材</p>
-                      <div className="space-y-2 mt-1">
-                        {editingProduct.highConversionAssets?.length > 0 ? (
-                          editingProduct.highConversionAssets.map((item, idx) => (
-                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg">
-                              <p className="text-slate-200 font-semibold">{item.title || "-"}</p>
-                              {item.content && (
-                                <p className="text-slate-300 text-xs mt-1">{item.content}</p>
-                              )}
-                              {item.link && (
-                                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-xs">
-                                  {item.link}
-                                </a>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                    </div>
                   </div>
-                  {editingProduct.images?.length > 0 && (
-                    <div className="grid grid-cols-3 gap-3 mt-4">
-                      {editingProduct.images.map((img, idx) => (
-                        <img
-                          key={idx}
-                          src={img}
-                          className="rounded-2xl border border-slate-800"
-                        />
-                      ))}
-                    </div>
-                  )}
+
+                  {/* 頁籤區域 */}
+                  <ProductDetailsTabs product={editingProduct} />
                 </SectionCard>
               )}
             </div>
             <div className="space-y-6">
               <ExportPanel
                 selectedProducts={db.products.filter((p) => selected.includes(p.id))}
+                db={db}
+                setDb={setDb}
+                currentUser={currentUser}
               />
               <OptionEditor
                 optionKey="categories"
@@ -2767,7 +3191,7 @@
             </header>
             <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
               {activeTab === "products" && user.permissions?.products && (
-                <ProductModule db={db} setDb={setDb} storageInfo={storageInfo} />
+                <ProductModule db={db} setDb={setDb} storageInfo={storageInfo} currentUser={user} />
               )}
               {activeTab === "products" && !user.permissions?.products && (
                 <SectionCard title="無權限">
@@ -2870,9 +3294,9 @@
         );
       };
 
+      // 公開產品預覽頁面組件
       const App = () => {
         const [db, setDb, storageInfo] = usePersistentDb();
-        const { manualSync, isSyncing, setAutoSyncEnabled, autoSyncEnabled } = storageInfo;
         const [users, setUsers] = useState([]); // 多個登入的使用者
         const [activeUserId, setActiveUserId] = useState(null); // 當前選中的使用者ID
 
