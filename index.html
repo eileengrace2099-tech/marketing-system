@@ -260,15 +260,42 @@
         try {
           // 儲存 users（使用批次 upsert，分批處理以避免超過限制）
           if (data.users && data.users.length > 0) {
-            const usersData = data.users.map(user => ({
-              id: user.id,
-              username: user.username,
-              password: user.password,
-              email: user.email || null,
-              display_name: user.displayName || null,
-              role: user.role || 'member',
-              permissions: user.permissions || {},
-            }));
+            // 過濾並修正用戶資料，確保所有 ID 都是有效的 UUID
+            const usersData = data.users
+              .filter(user => {
+                // 過濾掉沒有 ID 或 ID 為空字串的用戶
+                if (!user.id || user.id.trim() === '') {
+                  console.warn('⚠️ 發現無效的用戶 ID，已跳過:', user.username);
+                  return false;
+                }
+                // 檢查是否為有效的 UUID 格式（簡單檢查）
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!uuidRegex.test(user.id) && !user.id.startsWith('u-')) {
+                  // 如果不是 UUID 格式且不是舊格式，生成新的 UUID
+                  console.warn(`⚠️ 用戶 ${user.username} 的 ID 格式不正確，將生成新 UUID`);
+                  return false; // 暫時跳過，稍後會修正
+                }
+                return true;
+              })
+              .map(user => {
+                // 如果是舊格式的 ID（如 u-1），轉換為 UUID
+                let userId = user.id;
+                if (userId.startsWith('u-')) {
+                  userId = crypto.randomUUID();
+                  console.log(`🔄 將用戶 ${user.username} 的 ID 從 ${user.id} 轉換為 ${userId}`);
+                }
+                
+                return {
+                  id: userId,
+                  username: user.username || '',
+                  password: user.password || '',
+                  email: user.email || null,
+                  display_name: user.displayName || null,
+                  role: user.role || 'member',
+                  permissions: user.permissions || {},
+                };
+              })
+              .filter(user => user.id && user.id.trim() !== ''); // 再次過濾確保沒有空 ID
             
             // 分批處理，每批最多 50 筆（Supabase 建議的批次大小）
             const BATCH_SIZE = 50;
@@ -423,14 +450,30 @@
 
       const ensureDbShape = (data) => {
         const next = { ...DEFAULT_DB, ...data };
-        let users = (next.users || []).map((user, index) => ({
-          id: user.id || `u-${index + 1}`,
-          username: user.username || "",
-          password: user.password || "",
-          displayName: user.displayName || user.username || "",
-          role: user.role || "member",
-          permissions: normalizePermissions(user.permissions),
-        }));
+        let users = (next.users || []).map((user, index) => {
+          // 確保所有用戶都有有效的 UUID
+          let userId = user.id;
+          // UUID 格式檢查：應該是 8-4-4-4-12 的格式
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          
+          if (!userId || userId.trim() === '' || userId.startsWith('u-') || !uuidRegex.test(userId)) {
+            // 如果 ID 為空、舊格式或無效，生成新的 UUID
+            userId = crypto.randomUUID();
+            if (user.username) {
+              console.log(`🔄 為用戶 ${user.username} 生成新 UUID: ${userId} (原 ID: ${user.id || '空'})`);
+            }
+          }
+          
+          return {
+            id: userId,
+            username: user.username || "",
+            password: user.password || "",
+            email: user.email || "",
+            displayName: user.displayName || user.username || "",
+            role: user.role || "member",
+            permissions: normalizePermissions(user.permissions),
+          };
+        });
 
         const adminIndex = users.findIndex(
           (user) => user.username === DEFAULT_ADMIN.username
