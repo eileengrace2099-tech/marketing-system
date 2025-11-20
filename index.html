@@ -1503,7 +1503,6 @@
           { key: "nickname", label: "產品綽號" },
           { key: "usageMethod", label: "產品使用方式" },
           { key: "audiences", label: "產品受眾" },
-          { key: "painPoints", label: "產品痛點" },
           { key: "awards", label: "得獎榮譽" },
           { key: "channelSkus", label: "通路貨號" },
           { key: "channelLinks", label: "通路短連結" },
@@ -1852,7 +1851,7 @@
 
         const tabs = [
           { key: 'content', label: '產品內容' },
-          { key: 'audience', label: '受眾與痛點' },
+          { key: 'audience', label: '受眾與購買決策' },
           { key: 'channel', label: '通路管理' },
           { key: 'faqs', label: '常見問答' },
           { key: 'recommend', label: '推薦與素材' },
@@ -1909,17 +1908,6 @@
                         <Badge key={idx} label={a} />
                       ))}
                       {(!product.audiences || product.audiences.length === 0) && (
-                        <span className="text-slate-500">-</span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 mb-2">產品痛點</p>
-                    <div className="flex flex-wrap gap-2">
-                      {product.painPoints?.map((p, idx) => (
-                        <Badge key={idx} label={p} />
-                      ))}
-                      {(!product.painPoints || product.painPoints.length === 0) && (
                         <span className="text-slate-500">-</span>
                       )}
                     </div>
@@ -2127,7 +2115,7 @@
 
         const tabs = [
           { key: 'content', label: '產品內容' },
-          { key: 'audience', label: '受眾與痛點' },
+          { key: 'audience', label: '受眾與購買決策' },
           { key: 'channel', label: '通路管理' },
           { key: 'faqs', label: '常見問答' },
           { key: 'recommend', label: '推薦與素材' },
@@ -2179,12 +2167,6 @@
                     values={form.audiences}
                     placeholder="新增受眾"
                     onChange={(values) => updateField("audiences", values)}
-                  />
-                  <MultiInput
-                    label="產品痛點"
-                    values={form.painPoints}
-                    placeholder="新增痛點"
-                    onChange={(values) => updateField("painPoints", values)}
                   />
                   <MultiInput
                     label="得獎榮譽"
