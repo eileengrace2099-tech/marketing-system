@@ -1854,7 +1854,7 @@
           { key: 'content', label: '產品內容' },
           { key: 'audience', label: '受眾與痛點' },
           { key: 'channel', label: '通路管理' },
-          { key: 'decision', label: '購買決策與問答' },
+          { key: 'faqs', label: '常見問答' },
           { key: 'recommend', label: '推薦與素材' },
         ];
 
@@ -1935,6 +1935,24 @@
                       )}
                     </div>
                   </div>
+                  <div>
+                    <p className="text-slate-400 mb-2">購買決策</p>
+                    <div className="space-y-2">
+                      {Array.isArray(product.purchaseDecision) && product.purchaseDecision.length > 0 ? (
+                        product.purchaseDecision.map((item, idx) => (
+                          <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
+                            {item}
+                          </div>
+                        ))
+                      ) : product.purchaseDecision ? (
+                        <div className="text-xs bg-slate-800/50 p-2 rounded">
+                          {product.purchaseDecision}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -2010,26 +2028,8 @@
                 </div>
               )}
 
-              {activeTab === 'decision' && (
+              {activeTab === 'faqs' && (
                 <div className="space-y-4 text-sm">
-                  <div>
-                    <p className="text-slate-400 mb-2">購買決策</p>
-                    <div className="space-y-2">
-                      {Array.isArray(product.purchaseDecision) && product.purchaseDecision.length > 0 ? (
-                        product.purchaseDecision.map((item, idx) => (
-                          <div key={idx} className="text-xs bg-slate-800/50 p-2 rounded">
-                            {item}
-                          </div>
-                        ))
-                      ) : product.purchaseDecision ? (
-                        <div className="text-xs bg-slate-800/50 p-2 rounded">
-                          {product.purchaseDecision}
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">-</span>
-                      )}
-                    </div>
-                  </div>
                   <div>
                     <p className="text-slate-400 mb-2">常見問答</p>
                     <div className="space-y-2">
@@ -2129,7 +2129,7 @@
           { key: 'content', label: '產品內容' },
           { key: 'audience', label: '受眾與痛點' },
           { key: 'channel', label: '通路管理' },
-          { key: 'decision', label: '購買決策與問答' },
+          { key: 'faqs', label: '常見問答' },
           { key: 'recommend', label: '推薦與素材' },
         ];
 
@@ -2191,6 +2191,18 @@
                     values={form.awards}
                     placeholder="新增得獎紀錄"
                     onChange={(values) => updateField("awards", values)}
+                  />
+                  <PurchaseDecisionEditor
+                    items={
+                      Array.isArray(form.purchaseDecision)
+                        ? form.purchaseDecision
+                        : form.purchaseDecision
+                        ? [form.purchaseDecision]
+                        : []
+                    }
+                    onChange={(values) =>
+                      updateField("purchaseDecision", values)
+                    }
                   />
                 </div>
               )}
@@ -2305,20 +2317,8 @@
                 </div>
               )}
 
-              {activeTab === 'decision' && (
+              {activeTab === 'faqs' && (
                 <div className="space-y-4">
-                  <PurchaseDecisionEditor
-                    items={
-                      Array.isArray(form.purchaseDecision)
-                        ? form.purchaseDecision
-                        : form.purchaseDecision
-                        ? [form.purchaseDecision]
-                        : []
-                    }
-                    onChange={(values) =>
-                      updateField("purchaseDecision", values)
-                    }
-                  />
                   <FAQEditor
                     items={form.faqs || []}
                     onChange={(values) => updateField("faqs", values)}
