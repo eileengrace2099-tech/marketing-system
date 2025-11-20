@@ -205,11 +205,19 @@
             nameEn: product.name_en,
             nickname: product.nickname,
             shortDescription: product.short_description,
-            purchaseDecision: Array.isArray(product.purchase_decision) 
-              ? product.purchase_decision 
-              : product.purchase_decision 
-              ? [product.purchase_decision] 
-              : [],
+            purchaseDecision: (() => {
+              if (!product.purchase_decision) return [];
+              try {
+                // 嘗試解析為 JSON（如果是陣列的 JSON 字串）
+                const parsed = JSON.parse(product.purchase_decision);
+                return Array.isArray(parsed) ? parsed : [parsed];
+              } catch {
+                // 如果不是 JSON，當作字串處理
+                return Array.isArray(product.purchase_decision) 
+                  ? product.purchase_decision 
+                  : [product.purchase_decision];
+              }
+            })(),
             channelLinks: product.channel_links || {},
             features: product.features || [],
             audiences: product.audiences || [],
@@ -330,7 +338,11 @@
               name_en: product.nameEn || null,
               nickname: product.nickname || null,
               short_description: product.shortDescription || null,
-              purchase_decision: product.purchaseDecision || null,
+              purchase_decision: Array.isArray(product.purchaseDecision) 
+                ? (product.purchaseDecision.length > 0 ? JSON.stringify(product.purchaseDecision) : null)
+                : product.purchaseDecision 
+                ? (typeof product.purchaseDecision === 'string' ? product.purchaseDecision : JSON.stringify([product.purchaseDecision]))
+                : null,
               channel_links: product.channelLinks || {},
               features: product.features || [],
               audiences: product.audiences || [],
