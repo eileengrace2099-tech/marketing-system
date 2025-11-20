@@ -235,7 +235,27 @@
       };
 
       const saveToSupabase = async (data) => {
-        if (!USE_SUPABASE) return false;
+        if (!USE_SUPABASE) {
+          return { success: false, error: 'Supabase 未啟用' };
+        }
+
+        // 先測試 Supabase 連線
+        try {
+          const { error: testError } = await supabase.from('users').select('id').limit(1);
+          if (testError) {
+            console.error('❌ Supabase 連線測試失敗:', testError);
+            return { 
+              success: false, 
+              error: `連線失敗: ${testError.message || '無法連接到 Supabase'}${testError.code ? ` (${testError.code})` : ''}` 
+            };
+          }
+        } catch (testErr) {
+          console.error('❌ Supabase 連線測試異常:', testErr);
+          return { 
+            success: false, 
+            error: `連線異常: ${testErr.message || '網路連線問題，請檢查網路設定'}` 
+          };
+        }
 
         try {
           // 儲存 users（使用批次 upsert，分批處理以避免超過限制）
@@ -334,7 +354,7 @@
           }
 
           console.log('✅ Supabase 資料儲存成功');
-          return true;
+          return { success: true, error: null };
         } catch (error) {
           console.error('❌ Supabase 儲存失敗:', error);
           console.error('錯誤詳情:', {
@@ -343,7 +363,35 @@
             hint: error.hint,
             code: error.code
           });
-          return false;
+          
+          // 根據錯誤類型提供更詳細的訊息
+          let errorMessage = '同步失敗';
+          if (error.message) {
+            errorMessage = error.message;
+          } else if (error.code) {
+            errorMessage = `錯誤代碼: ${error.code}`;
+          }
+          
+          // 常見錯誤的友好提示
+          if (error.code === 'PGRST116') {
+            errorMessage = '資料表不存在，請檢查 Supabase 資料庫設定';
+          } else if (error.code === '23505') {
+            errorMessage = '資料重複，請檢查資料完整性';
+          } else if (error.message && error.message.includes('JWT')) {
+            errorMessage = 'API Key 無效或已過期，請檢查 Supabase 設定';
+          } else if (error.message && error.message.includes('network')) {
+            errorMessage = '網路連線失敗，請檢查網路設定';
+          }
+          
+          return { 
+            success: false, 
+            error: errorMessage,
+            details: {
+              code: error.code,
+              hint: error.hint,
+              details: error.details
+            }
+          };
         }
       };
 
@@ -465,23 +513,30 @@
         const manualSync = async () => {
           if (!USE_SUPABASE || storageMode !== 'supabase') {
             console.warn('⚠️ Supabase 未啟用或處於離線模式');
-            return false;
+            return { success: false, error: 'Supabase 未啟用或處於離線模式' };
           }
           
           setIsSyncing(true);
           try {
             // 總是先寫入 localStorage
             saveToStorage(db);
+            console.log('✅ 資料已儲存到本地');
             
-            const success = await saveToSupabase(db);
-            if (success) {
+            const result = await saveToSupabase(db);
+            if (result.success) {
               setLastSaveTime(Date.now());
               console.log('✅ 手動同步成功');
-              return true;
+              return { success: true, error: null };
             } else {
-              console.warn('⚠️ 手動同步失敗');
-              return false;
+              console.warn('⚠️ 手動同步失敗:', result.error);
+              return { success: false, error: result.error || '同步失敗' };
             }
+          } catch (error) {
+            console.error('❌ 同步過程發生異常:', error);
+            return { 
+              success: false, 
+              error: error.message || '同步過程發生未知錯誤' 
+            };
           } finally {
             setIsSyncing(false);
           }
@@ -504,18 +559,18 @@
           if (USE_SUPABASE && storageMode === 'supabase' && autoSyncEnabled) {
             // 使用 setTimeout 確保不會阻塞 UI
             setTimeout(() => {
-              saveToSupabase(db).then((success) => {
-                if (success) {
-                  setLastSaveTime(Date.now());
-                  console.log('✅ 資料已自動同步到 Supabase');
-                } else {
-                  console.warn('⚠️ Supabase 自動同步失敗，但資料已儲存在本地');
-                  // 不切換到 localStorage 模式，讓用戶可以手動重試
-                }
-              }).catch((error) => {
-                console.error('❌ Supabase 自動同步發生錯誤:', error);
-                // 不影響本地操作
-              });
+            saveToSupabase(db).then((result) => {
+              if (result.success) {
+                setLastSaveTime(Date.now());
+                console.log('✅ 資料已自動同步到 Supabase');
+              } else {
+                console.warn('⚠️ Supabase 自動同步失敗，但資料已儲存在本地:', result.error);
+                // 不切換到 localStorage 模式，讓用戶可以手動重試
+              }
+            }).catch((error) => {
+              console.error('❌ Supabase 自動同步發生錯誤:', error);
+              // 不影響本地操作
+            });
             }, 0);
           }
         }, [db, isLoading, storageMode, autoSyncEnabled]);
@@ -537,12 +592,12 @@
           const timer = setTimeout(() => {
             console.log('⏰ 10分鐘已過，自動儲存到雲端');
             saveToStorage(db); // 確保本地有最新資料
-            saveToSupabase(db).then((success) => {
-              if (success) {
+            saveToSupabase(db).then((result) => {
+              if (result.success) {
                 setLastSaveTime(Date.now());
                 console.log('✅ 自動儲存成功');
               } else {
-                console.warn('⚠️ 自動儲存失敗');
+                console.warn('⚠️ 自動儲存失敗:', result.error);
               }
             });
           }, AUTO_SAVE_INTERVAL);
@@ -3141,11 +3196,14 @@
                       {storageInfo.storageMode === 'supabase' && storageInfo.manualSync && (
                         <button
                           onClick={async () => {
-                            const success = await storageInfo.manualSync();
-                            if (success) {
+                            const result = await storageInfo.manualSync();
+                            if (result.success) {
                               alert('✅ 資料已成功同步到雲端');
                             } else {
-                              alert('⚠️ 同步失敗，請檢查網路連線');
+                              // 顯示詳細的錯誤訊息
+                              const errorMsg = result.error || '同步失敗，請檢查網路連線';
+                              alert(`⚠️ 同步失敗\n\n${errorMsg}\n\n💡 提示：\n- 資料已儲存在本地，不會遺失\n- 請檢查 Supabase 設定是否正確\n- 可稍後再試或檢查網路連線`);
+                              console.error('同步失敗詳情:', result);
                             }
                           }}
                           disabled={storageInfo.isSyncing}
