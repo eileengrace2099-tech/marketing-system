@@ -878,7 +878,7 @@
         );
       };
 
-      const ComboEditor = ({ items = [], onChange }) => {
+      const ComboEditor = ({ items = [], onChange, label = "推薦搭配產品" }) => {
         const handleAdd = () =>
           onChange([
             ...(items || []),
@@ -899,16 +899,29 @@
 
         return (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm text-slate-300">推薦搭配產品</label>
-              <button
-                type="button"
-                onClick={handleAdd}
-                className="px-3 py-1 text-xs rounded-full border border-slate-700"
-              >
-                新增推薦
-              </button>
-            </div>
+            {label && (
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-300">{label}</label>
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  className="px-3 py-1 text-xs rounded-full border border-slate-700"
+                >
+                  新增推薦
+                </button>
+              </div>
+            )}
+            {!label && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  className="px-3 py-1 text-xs rounded-full border border-slate-700"
+                >
+                  新增
+                </button>
+              </div>
+            )}
             <div className="space-y-3">
               {items.length ? (
                 items.map((item, index) => (
@@ -951,6 +964,86 @@
                 ))
               ) : (
                 <p className="text-sm text-slate-500">尚未新增推薦產品</p>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      // 高轉換素材編輯器
+      const HighConversionEditor = ({ items = [], onChange }) => {
+        const handleAdd = () =>
+          onChange([
+            ...(items || []),
+            { title: "", content: "", link: "" },
+          ]);
+
+        const handleChange = (index, field, value) => {
+          onChange(
+            items.map((item, idx) =>
+              idx === index ? { ...item, [field]: value } : item
+            )
+          );
+        };
+
+        const handleRemove = (index) => {
+          onChange(items.filter((_, idx) => idx !== index));
+        };
+
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-slate-300">高轉換素材</label>
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="px-3 py-1 text-xs rounded-full border border-slate-700"
+              >
+                新增素材
+              </button>
+            </div>
+            <div className="space-y-3">
+              {items.length ? (
+                items.map((item, index) => (
+                  <div
+                    key={index}
+                    className="space-y-2 bg-slate-950/40 border border-slate-800 rounded-2xl p-4"
+                  >
+                    <input
+                      className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2"
+                      placeholder="標題"
+                      value={item.title || ""}
+                      onChange={(e) =>
+                        handleChange(index, "title", e.target.value)
+                      }
+                    />
+                    <textarea
+                      className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2 min-h-[80px]"
+                      placeholder="內文"
+                      value={item.content || ""}
+                      onChange={(e) =>
+                        handleChange(index, "content", e.target.value)
+                      }
+                    />
+                    <input
+                      className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2"
+                      placeholder="連結（可選）"
+                      value={item.link || ""}
+                      onChange={(e) =>
+                        handleChange(index, "link", e.target.value)
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(index)}
+                      className="text-xs text-red-300 border border-red-500/40 rounded-xl px-3 py-1"
+                    >
+                      刪除此素材
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500">尚未新增高轉換素材</p>
               )}
             </div>
           </div>
@@ -1301,6 +1394,223 @@
         );
       };
 
+      // 產品表單頁籤組件
+      const ProductTabs = ({
+        form,
+        updateField,
+        referenceOptions,
+        handleChannelSkuAdd,
+        handleListChange,
+        handleListRemove,
+        handleChannelLinkChange,
+      }) => {
+        const [activeTab, setActiveTab] = useState('content');
+
+        const tabs = [
+          { key: 'content', label: '產品內容' },
+          { key: 'audience', label: '受眾與痛點' },
+          { key: 'channel', label: '通路管理' },
+          { key: 'decision', label: '購買決策與問答' },
+          { key: 'recommend', label: '推薦與素材' },
+        ];
+
+        return (
+          <div className="space-y-4">
+            {/* 頁籤導航 */}
+            <div className="flex gap-2 border-b border-slate-800 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+                    activeTab === tab.key
+                      ? 'border-emerald-400 text-emerald-300'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 頁籤內容 */}
+            <div className="min-h-[400px]">
+              {activeTab === 'content' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm">產品介紹短文</label>
+                    <textarea
+                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 min-h-[120px]"
+                      value={form.shortDescription}
+                      onChange={(e) => updateField("shortDescription", e.target.value)}
+                    ></textarea>
+                  </div>
+                  <FiveFeaturesInput
+                    values={form.features}
+                    onChange={(values) => updateField("features", values)}
+                  />
+                </div>
+              )}
+
+              {activeTab === 'audience' && (
+                <div className="space-y-4">
+                  <MultiInput
+                    label="產品受眾"
+                    values={form.audiences}
+                    placeholder="新增受眾"
+                    onChange={(values) => updateField("audiences", values)}
+                  />
+                  <MultiInput
+                    label="產品痛點"
+                    values={form.painPoints}
+                    placeholder="新增痛點"
+                    onChange={(values) => updateField("painPoints", values)}
+                  />
+                  <MultiInput
+                    label="得獎榮譽"
+                    values={form.awards}
+                    placeholder="新增得獎紀錄"
+                    onChange={(values) => updateField("awards", values)}
+                  />
+                </div>
+              )}
+
+              {activeTab === 'channel' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm text-slate-300">通路貨號</h3>
+                    <button
+                      type="button"
+                      onClick={handleChannelSkuAdd}
+                      className="px-3 py-1 text-xs rounded-full border border-slate-700"
+                    >
+                      新增通路
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {form.channelSkus.map((item, index) => (
+                      <div
+                        key={index}
+                        className="grid md:grid-cols-3 gap-3 bg-slate-950/40 p-3 rounded-2xl border border-slate-800"
+                      >
+                        <input
+                          className="bg-transparent border border-slate-800 rounded-xl px-3 py-2"
+                          placeholder="通路名稱"
+                          value={item.channel}
+                          onChange={(e) =>
+                            handleListChange("channelSkus", index, "channel", e.target.value)
+                          }
+                        />
+                        <input
+                          className="bg-transparent border border-slate-800 rounded-xl px-3 py-2"
+                          placeholder="通路貨號"
+                          value={item.sku}
+                          onChange={(e) =>
+                            handleListChange("channelSkus", index, "sku", e.target.value)
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleListRemove("channelSkus", index)}
+                          className="rounded-xl border border-red-500/40 text-red-300 text-sm"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    ))}
+                    {!form.channelSkus.length && (
+                      <p className="text-sm text-slate-500">尚無通路設定</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm text-slate-300">通路短連結</h3>
+                      <p className="text-xs text-slate-500">
+                        通路選項可在右側「通路管理」編輯
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      {referenceOptions.channelLinks.length ? (
+                        referenceOptions.channelLinks.map((channel) => (
+                          <div
+                            key={channel}
+                            className="grid md:grid-cols-3 gap-3 items-center bg-slate-950/40 p-3 rounded-2xl border border-slate-800"
+                          >
+                            <div className="text-sm font-medium text-slate-200">
+                              {channel}
+                            </div>
+                            <div className="md:col-span-2">
+                              <input
+                                className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2"
+                                placeholder="輸入短網址或完整網址"
+                                value={form.channelLinks?.[channel] || ""}
+                                onChange={(e) =>
+                                  handleChannelLinkChange(channel, e.target.value)
+                                }
+                              />
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-slate-500 text-center py-4">
+                          尚未設定通路，請至右側「通路管理」新增。
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <FileUploader
+                      images={form.images}
+                      onChange={(images) => updateField("images", images)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'decision' && (
+                <div className="space-y-4">
+                  <PurchaseDecisionEditor
+                    items={
+                      Array.isArray(form.purchaseDecision)
+                        ? form.purchaseDecision
+                        : form.purchaseDecision
+                        ? [form.purchaseDecision]
+                        : []
+                    }
+                    onChange={(values) =>
+                      updateField("purchaseDecision", values)
+                    }
+                  />
+                  <FAQEditor
+                    items={form.faqs || []}
+                    onChange={(values) => updateField("faqs", values)}
+                  />
+                </div>
+              )}
+
+              {activeTab === 'recommend' && (
+                <div className="space-y-4">
+                  <ComboEditor
+                    items={form.recommendedCombos || []}
+                    onChange={(values) => updateField("recommendedCombos", values)}
+                  />
+                  <ComboEditor
+                    items={form.recommendedOthers || []}
+                    onChange={(values) => updateField("recommendedOthers", values)}
+                    label="推薦其他產品"
+                  />
+                  <HighConversionEditor
+                    items={form.highConversionAssets || []}
+                    onChange={(values) => updateField("highConversionAssets", values)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
       const ProductForm = ({
         initialValue,
         referenceOptions,
@@ -1494,135 +1804,6 @@
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm">產品介紹短文</label>
-                <textarea
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 min-h-[120px]"
-                  value={form.shortDescription}
-                  onChange={(e) => updateField("shortDescription", e.target.value)}
-                ></textarea>
-              </div>
-              <div className="space-y-4">
-                <FiveFeaturesInput
-                  values={form.features}
-                  onChange={(values) => updateField("features", values)}
-                />
-                <ComboEditor
-                  items={form.recommendedCombos || []}
-                  onChange={(values) => updateField("recommendedCombos", values)}
-                />
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <FAQEditor
-                  items={form.faqs || []}
-                  onChange={(values) => updateField("faqs", values)}
-                />
-                <PurchaseDecisionEditor
-                  items={
-                    Array.isArray(form.purchaseDecision)
-                      ? form.purchaseDecision
-                      : form.purchaseDecision
-                      ? [form.purchaseDecision]
-                      : []
-                  }
-                  onChange={(values) =>
-                    updateField("purchaseDecision", values)
-                  }
-                />
-              </div>
-            </SectionCard>
-
-            <SectionCard title="通路管理">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm text-slate-300">通路貨號</h3>
-                  <button
-                    type="button"
-                    onClick={handleChannelSkuAdd}
-                    className="px-3 py-1 text-xs rounded-full border border-slate-700"
-                  >
-                    新增通路
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {form.channelSkus.map((item, index) => (
-                    <div
-                      key={index}
-                      className="grid md:grid-cols-3 gap-3 bg-slate-950/40 p-3 rounded-2xl border border-slate-800"
-                    >
-                      <input
-                        className="bg-transparent border border-slate-800 rounded-xl px-3 py-2"
-                        placeholder="通路名稱"
-                        value={item.channel}
-                        onChange={(e) =>
-                          handleListChange("channelSkus", index, "channel", e.target.value)
-                        }
-                      />
-                      <input
-                        className="bg-transparent border border-slate-800 rounded-xl px-3 py-2"
-                        placeholder="通路貨號"
-                        value={item.sku}
-                        onChange={(e) =>
-                          handleListChange("channelSkus", index, "sku", e.target.value)
-                        }
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleListRemove("channelSkus", index)}
-                        className="rounded-xl border border-red-500/40 text-red-300 text-sm"
-                      >
-                        移除
-                      </button>
-                    </div>
-                  ))}
-                  {!form.channelSkus.length && (
-                    <p className="text-sm text-slate-500">尚無通路設定</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm text-slate-300">通路短連結</h3>
-                    <p className="text-xs text-slate-500">
-                      通路選項可在右側「通路管理」編輯
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    {referenceOptions.channelLinks.length ? (
-                      referenceOptions.channelLinks.map((channel) => (
-                        <div
-                          key={channel}
-                          className="grid md:grid-cols-3 gap-3 items-center bg-slate-950/40 p-3 rounded-2xl border border-slate-800"
-                        >
-                          <div className="text-sm font-medium text-slate-200">
-                            {channel}
-                          </div>
-                          <div className="md:col-span-2">
-                            <input
-                              className="w-full bg-transparent border border-slate-800 rounded-xl px-3 py-2"
-                              placeholder="輸入短網址或完整網址"
-                              value={form.channelLinks?.[channel] || ""}
-                              onChange={(e) =>
-                                handleChannelLinkChange(channel, e.target.value)
-                              }
-                            />
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-slate-500">
-                        尚未設定通路，請至右側「通路管理」新增。
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <FileUploader
-                  images={form.images}
-                  onChange={(images) => updateField("images", images)}
-                />
-              </div>
-            </SectionCard>
-
-            <SectionCard title="受眾與痛點">
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm">產品使用方式</label>
@@ -1647,24 +1828,19 @@
                     updateField("nickname", values.length ? values[0] : "")
                   }
                 />
-                <MultiInput
-                  label="產品受眾"
-                  values={form.audiences}
-                  placeholder="新增受眾"
-                  onChange={(values) => updateField("audiences", values)}
-                />
-                <MultiInput
-                  label="產品痛點"
-                  values={form.painPoints}
-                  placeholder="新增痛點"
-                  onChange={(values) => updateField("painPoints", values)}
-                />
               </div>
-              <MultiInput
-                label="得獎榮譽"
-                values={form.awards}
-                placeholder="新增得獎紀錄"
-                onChange={(values) => updateField("awards", values)}
+            </SectionCard>
+
+            {/* 頁籤區域 */}
+            <SectionCard title="詳細資訊">
+              <ProductTabs
+                form={form}
+                updateField={updateField}
+                referenceOptions={referenceOptions}
+                handleChannelSkuAdd={handleChannelSkuAdd}
+                handleListChange={handleListChange}
+                handleListRemove={handleListRemove}
+                handleChannelLinkChange={handleChannelLinkChange}
               />
             </SectionCard>
           </form>
